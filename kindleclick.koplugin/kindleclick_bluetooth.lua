@@ -147,19 +147,34 @@ function Bluetooth.getStatus()
     }
 end
 
-function Bluetooth.setEnabled(enabled)
-    local flight_mode = enabled and 0 or 1
-    os.execute(string.format(
-        "lipc-set-prop %s BTflightMode %d >/dev/null 2>&1",
-        SERVICE, flight_mode))
-
-    -- The radio changes state asynchronously. This bounded wait only runs after
-    -- a user action (or startup auto-connect), never in a recurring timer.
+local function waitForEnabled(enabled)
     for _ = 1, 10 do
         if Bluetooth.isEnabled() == enabled then return true end
         os.execute("usleep 200000 2>/dev/null")
     end
     return false
+end
+
+function Bluetooth.setEnabled(enabled)
+    if enabled then
+        -- Newer ACE stacks need both: leaving Bluetooth flight mode is not
+        -- always enough to restore full operation after a deep sleep. Older
+        -- btfd builds simply reject the unknown property and honor BTenable.
+        os.execute(string.format(
+            "lipc-set-prop %s BTflightMode 0 >/dev/null 2>&1", SERVICE))
+        os.execute(string.format(
+            "lipc-set-prop %s BTenable 1:2 >/dev/null 2>&1", SERVICE))
+        return waitForEnabled(true)
+    end
+
+    -- BTenable 0:x only lowers power on newer ACE stacks; BTflightMode really
+    -- turns the radio off. If an old btfd lacks it, use the legacy 0:1 fallback.
+    os.execute(string.format(
+        "lipc-set-prop %s BTflightMode 1 >/dev/null 2>&1", SERVICE))
+    if waitForEnabled(false) then return true end
+    os.execute(string.format(
+        "lipc-set-prop %s BTenable 0:1 >/dev/null 2>&1", SERVICE))
+    return waitForEnabled(false)
 end
 
 function Bluetooth.isKindleClick(name)
@@ -168,45 +183,87 @@ function Bluetooth.isKindleClick(name)
     return normalized:find("kindleclick", 1, true) ~= nil
 end
 
--- Legacy fallback only. Firmware 5.20.x reconnects official Clicks through its
--- native HID background-connection list, not through this name-based path.
-function Bluetooth.findPairedKindleClick()
-    local file = io.open(PAIRED_DEVICES_FILE, "r")
-    if not file then return nil end
-
+-- Parse Amazon's accessory-type database. Official Clicks may be named
+-- "Amazon Fire TV Remote" in bt_config.conf, so their BleHidPageTurner type is
+-- the reliable way to find the address without reading any pairing keys.
+function Bluetooth._findPageTurnerAddress(text)
     local current_address
-    local current_name
-    local found_address
-    for line in file:lines() do
+    local is_page_turner = false
+
+    for line in ((text or "") .. "\n"):gmatch("(.-)\r?\n") do
         local section = line:match("^%s*%[([^%]]+)%]%s*$")
         if section then
-            if Bluetooth.isKindleClick(current_name) and current_address then
-                found_address = current_address
-                break
-            end
+            if is_page_turner and current_address then return current_address end
             current_address = section:match(
                 "^(%x%x:%x%x:%x%x:%x%x:%x%x:%x%x)$")
-            current_name = nil
+            is_page_turner = false
         elseif current_address then
             local key, value = line:match("^%s*([%w_]+)%s*=%s*(.-)%s*$")
-            if key == "Name" then current_name = value end
+            if key == "type" and value == "BleHidPageTurner" then
+                is_page_turner = true
+            end
         end
     end
-    file:close()
-
-    if found_address then return found_address end
-    if Bluetooth.isKindleClick(current_name) then return current_address end
+    if is_page_turner then return current_address end
     return nil
 end
 
-function Bluetooth.connect(address)
+-- The accessory-type path handles native 5.20.x page turners; the older
+-- name-based path remains as a fallback for other firmware and remotes.
+function Bluetooth.findPairedKindleClick()
+    local file = io.open(PAIRED_DEVICES_FILE, "r")
+    if file then
+        local current_address
+        local current_name
+        local found_address
+        for line in file:lines() do
+            local section = line:match("^%s*%[([^%]]+)%]%s*$")
+            if section then
+                if Bluetooth.isKindleClick(current_name) and current_address then
+                    found_address = current_address
+                    break
+                end
+                current_address = section:match(
+                    "^(%x%x:%x%x:%x%x:%x%x:%x%x:%x%x)$")
+                current_name = nil
+            elseif current_address then
+                local key, value = line:match("^%s*([%w_]+)%s*=%s*(.-)%s*$")
+                if key == "Name" then current_name = value end
+            end
+        end
+        file:close()
+
+        if found_address then return found_address end
+        if Bluetooth.isKindleClick(current_name) then return current_address end
+    end
+
+    file = io.open("/var/local/system/bt_device_types.conf", "r")
+    if not file then return nil end
+    local address = Bluetooth._findPageTurnerAddress(file:read("*a"))
+    file:close()
+    return address
+end
+
+local function setDeviceProperty(property, address)
     if not address or not address:match("^%x%x:%x%x:%x%x:%x%x:%x%x:%x%x$") then
         return false
     end
     -- address is strictly validated above, so it is safe to pass to the shell.
     os.execute(string.format(
-        'lipc-set-prop %s Connect "%s" >/dev/null 2>&1', SERVICE, address))
+        'lipc-set-prop %s %s "%s" >/dev/null 2>&1',
+        SERVICE, property, address))
     return true
+end
+
+function Bluetooth.connect(address)
+    return setDeviceProperty("Connect", address)
+end
+
+-- Gracefully release only the paired Click through Amazon's native API. This
+-- does not unpair it, stop input_manager, power off Bluetooth, or affect other
+-- Bluetooth devices. The native stack re-arms reconnection on resume/toggle.
+function Bluetooth.releaseClick()
+    return setDeviceProperty("Disconnect", Bluetooth.findPairedKindleClick())
 end
 
 -- Read-only, on-demand values for the diagnostic view.

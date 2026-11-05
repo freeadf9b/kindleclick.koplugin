@@ -226,6 +226,9 @@ function KindleClick:_setEnabled(enabled, quiet)
         self:_showMessage(enabled and _("正在打开蓝牙…") or _("正在关闭蓝牙…"), 1)
     end
 
+    -- Clear a stale Click session before re-enabling the radio after deep
+    -- sleep. This is a one-shot native Disconnect, not a polling/recovery loop.
+    if enabled then Bluetooth.releaseClick() end
     local ok = Bluetooth.setEnabled(enabled)
     self:_refreshStatus(true)
 
@@ -424,11 +427,25 @@ end
 
 function KindleClick:onSuspend()
     self:_cancelChecks()
+    -- Keep a process-local snapshot: deep sleep does not restart KOReader, and
+    -- resume must never turn on Bluetooth if the user had explicitly turned it
+    -- off before sleeping.
+    local status = Bluetooth.getStatus()
+    self._pre_sleep_enabled = status.enabled
+
+    -- Kindle broadcasts Suspend while entering the screensaver, before powerd
+    -- reaches its deep-suspend levels. Release Click cleanly in that window so
+    -- an interrupted native session cannot leave the radio occupied overnight.
+    if status.click then Bluetooth.releaseClick() end
 end
 
 function KindleClick:onResume()
+    -- Consume the snapshot so duplicate Resume events cannot repeat recovery.
+    local restore = self._pre_sleep_enabled
+    self._pre_sleep_enabled = nil
     self:_refreshStatus(true)
-    if self.auto_connect and not Bluetooth.isKindleClick(self.state.device_name) then
+    if self.auto_connect and restore
+        and not Bluetooth.isKindleClick(self.state.device_name) then
         self:_connectClick(false)
     end
 end

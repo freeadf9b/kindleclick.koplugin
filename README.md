@@ -13,6 +13,7 @@
 - 在 **设置 → 网络 → Kindle Click** 中加入蓝牙开关。
 - 显示当前蓝牙连接的设备名称。
 - 启动 KOReader 或唤醒时让原生系统恢复蓝牙和 Click 连接（可关闭自动连接）。
+- 按电源键或 Click 双侧键进入休眠时主动断开并释放 Click；重新开启蓝牙前清理残留会话，避免深度休眠后无法重连。
 - 提供“连接 Kindle Click”“刷新连接状态”和“诊断信息”菜单项。
 - 长按“Kindle Click”上一级菜单项，可以直接开关蓝牙。
 - 三种状态共用**同一个图标位**，不再用有无图标表示开关：
@@ -116,7 +117,7 @@
 
 **公开分享诊断文件前请先检查并遮盖蓝牙地址等隐私信息。**
 
-仅支持 Kindle，不适用于 Kobo、Android 或桌面版 KOReader。建议使用当前 KOReader 版本。1.2.0 的连接、翻页、侧键、三态图标和 Bookends 显示已通过 KPW6 / 5.20.1 实机确认；1.2.1 仅移除 `_meta.lua` 中已弃用的 `name` 字段，并通过全部静态/逻辑回归测试。
+仅支持 Kindle，不适用于 Kobo、Android 或桌面版 KOReader。建议使用当前 KOReader 版本。1.2.0 的连接、翻页、侧键、三态图标和 Bookends 显示已通过 KPW6 / 5.20.1 实机确认；1.2.1 仅移除 `_meta.lua` 中已弃用的 `name` 字段。1.2.2 新增休眠前主动释放 Click 及开启蓝牙前清理残留会话。1.2.3 完善新旧 btfd 开关指令兼容，并增加睡前状态快照，避免唤醒时误开启睡前已关闭的蓝牙。1.2.2 及 1.2.3 均通过全部静态/逻辑回归测试；隔夜深度休眠后的恢复效果仍需实机验证。
 
 ### 文件
 
@@ -141,6 +142,7 @@ A standalone KOReader plugin for **Kindle** only. It controls Kindle's native Bl
 - Adds a Bluetooth switch under **Settings → Network → Kindle Click**.
 - Shows the name of the currently connected Bluetooth device.
 - Lets the native system restore Bluetooth and the Click connection when KOReader starts or the device wakes; automatic connection can be disabled.
+- Cleanly disconnects and releases the Click when the power button or the Click's sleep gesture enters sleep, and clears a stale session before re-enabling Bluetooth to restore reconnection after deep sleep.
 - Provides **Connect Kindle Click**, **Refresh connection status**, and **Diagnostics** menu items.
 - Long-press the parent **Kindle Click** menu item to toggle Bluetooth directly.
 - Uses **one icon position for all three states**, rather than showing or hiding an icon:
@@ -244,7 +246,7 @@ If the Click disconnects while you are reading without interacting with the devi
 
 **Before sharing a diagnostic report publicly, review it and redact private information such as Bluetooth addresses.**
 
-Kindle only; Kobo, Android, and desktop KOReader are not supported. A current KOReader version is recommended. Version 1.2.0 was verified on KPW6 / firmware 5.20.1 for connection, page turning, side buttons, three-state icons, and Bookends display. Version 1.2.1 only removes the deprecated `name` field from `_meta.lua` and passes all static and logic regression tests.
+Kindle only; Kobo, Android, and desktop KOReader are not supported. A current KOReader version is recommended. Version 1.2.0 was verified on KPW6 / firmware 5.20.1 for connection, page turning, side buttons, three-state icons, and Bookends display. Version 1.2.1 only removes the deprecated `name` field from `_meta.lua`. Version 1.2.2 releases the Click before sleep and clears stale sessions before enabling Bluetooth. Version 1.2.3 adds new/old btfd command compatibility and a pre-sleep state snapshot, preventing resume from enabling Bluetooth that was explicitly off before sleep. Versions 1.2.2 and 1.2.3 pass all static and logic regression tests; overnight deep-sleep recovery still requires on-device verification.
 
 ### Files
 
