@@ -45,8 +45,8 @@ function KindleClick:_installInputSupport()
     end
     if not Device:hasKeys() then Device.hasKeys = yes end
 
-    -- Amazon's input_manager has already applied its own orientation swap.
-    -- Prevent KOReader from swapping the pass-through events a second time.
+    -- On the tested KPW6, the native path applies its orientation swap.
+    -- Prevent a second swap for that observed pass-through device.
     local passthrough = Bluetooth.getPassThroughDevice()
     if passthrough and passthrough.path then
         local Input = require("device/input")
@@ -71,6 +71,7 @@ function KindleClick:init()
         device_name = nil,
         native_click = false,
         known = false,
+        initialized = false,
     }
     self._checks = {}
     self._last_refresh = 0
@@ -123,6 +124,7 @@ function KindleClick:onKindleClickConnect()
 end
 
 function KindleClick:_statusText()
+    if not self.state.known then return "?" end
     local icon_state = "off"
     if self.state.known and self.state.enabled then
         icon_state = Bluetooth.isKindleClick(self.state.device_name) and "click" or "on"
@@ -160,14 +162,17 @@ function KindleClick:_refreshStatus(force)
     self._refresh_pending = false
 
     local status = Bluetooth.getStatus()
-    local changed = not self.state.known
+    local changed = not self.state.initialized
+        or self.state.known ~= status.known
         or self.state.enabled ~= status.enabled
         or self.state.device_name ~= status.device_name
 
     self.state.enabled = status.enabled
     self.state.device_name = status.device_name
     self.state.native_click = status.native_click
-    self.state.known = true
+    self.state.known = status.known
+    self.state.status_error = status.status_error
+    self.state.initialized = true
     self._last_refresh = os.time()
 
     if changed then self:_updateFooter() end
@@ -211,9 +216,73 @@ end
 -- last check), no timer remains active.
 function KindleClick:_scheduleConnectionChecks()
     self:_cancelChecks()
-    for _, delay in ipairs({ 2, 5, 10, 20 }) do
-        self:_scheduleCheck(delay)
+    local delays = { 2, 5, 10, 20 }
+    local function scheduleCheck(attempt, delay)
+        local callback
+        callback = function()
+            for i, item in ipairs(self._checks) do
+                if item == callback then
+                    table.remove(self._checks, i)
+                    break
+                end
+            end
+            if self._closed then return end
+
+            self:_refreshStatus(true)
+            if attempt == #delays
+                and not Bluetooth.isKindleClick(self.state.device_name) then
+                local message = not self.state.known
+                    and _("无法读取蓝牙状态，请查看诊断信息")
+                    or  _("未能确认 Kindle Click 已连接，请检查原生配对状态")
+                self:_showMessage(message, 5)
+            end
+        end
+        table.insert(self._checks, callback)
+        UIManager:scheduleIn(delay, callback)
     end
+    for attempt, delay in ipairs(delays) do
+        scheduleCheck(attempt, delay)
+    end
+end
+
+function KindleClick:_scheduleBluetoothRecoveryCheck(delay, attempts)
+    local callback
+    callback = function()
+        for i, item in ipairs(self._checks) do
+            if item == callback then
+                table.remove(self._checks, i)
+                break
+            end
+        end
+        if self._closed then return end
+
+        self:_refreshStatus(true)
+        if self.state.enabled == true then
+            if self.auto_connect
+                and not Bluetooth.isKindleClick(self.state.device_name) then
+                self:_connectClick(false)
+            end
+            return
+        end
+
+        if attempts >= 3 then
+            self:_showMessage(_([[启动或唤醒后无法确认蓝牙已恢复。
+请打开“诊断信息”检查 btfd 状态；插件不会重启系统蓝牙服务或修改配对数据。]]), 6)
+            return
+        end
+
+        -- Reassert only the saved/explicitly requested on state. Do not restart
+        -- btfd or manipulate the radio outside Kindle's native LIPC API.
+        Bluetooth.requestEnabled(true)
+        self:_scheduleBluetoothRecoveryCheck(attempts == 0 and 3 or 6, attempts + 1)
+    end
+    table.insert(self._checks, callback)
+    UIManager:scheduleIn(delay, callback)
+end
+
+function KindleClick:_scheduleBluetoothRecovery()
+    self:_cancelChecks()
+    self:_scheduleBluetoothRecoveryCheck(2, 0)
 end
 
 function KindleClick:_showMessage(text, timeout)
@@ -226,28 +295,34 @@ function KindleClick:_setEnabled(enabled, quiet)
         self:_showMessage(enabled and _("正在打开蓝牙…") or _("正在关闭蓝牙…"), 1)
     end
 
-    -- Clear a stale Click session before re-enabling the radio after deep
-    -- sleep. This is a one-shot native Disconnect, not a polling/recovery loop.
+    -- Request release of a stale Click session before asking the native
+    -- service to enable Bluetooth; this does not guarantee hardware recovery.
     if enabled then Bluetooth.releaseClick() end
-    local ok = Bluetooth.setEnabled(enabled)
+    local ok, reason = Bluetooth.setEnabled(enabled)
     self:_refreshStatus(true)
 
     if ok and enabled then
-        -- On 5.20.x, Bluedroid's native HID background list reconnects Click.
-        -- Its BtReconnect/legacy name-based path does not handle page turners.
+        -- Ask the native service to connect only when the native HID path is
+        -- absent; firmware-specific automatic reconnection is not assumed.
         if not self.state.native_click then
             local address = Bluetooth.findPairedKindleClick()
             if address then Bluetooth.connect(address) end
         end
         self:_scheduleConnectionChecks()
+    elseif enabled then
+        self:_scheduleBluetoothRecovery()
     end
 
     if not quiet then
         local message
         if not ok then
-            message = enabled
-                and _("蓝牙开启失败，请在 Kindle 原生设置中检查")
-                or  _("蓝牙关闭失败，请在 Kindle 原生设置中检查")
+            if reason == "status-unavailable" then
+                message = _("无法读取蓝牙状态，正在有限重试；仍失败请查看诊断信息")
+            else
+                message = enabled
+                    and _("蓝牙开启未确认，正在有限重试")
+                    or  _("蓝牙关闭失败，请在 Kindle 原生设置中检查")
+            end
         elseif enabled and self.state.native_click then
             message = _("蓝牙已开启，等待 Kindle Click 自动重连")
         else
@@ -263,6 +338,12 @@ function KindleClick:_connectClick(manual)
     self:_refreshStatus(true)
     if Bluetooth.isKindleClick(self.state.device_name) then
         if manual then self:_showMessage(_("Kindle Click 已连接"), 2) end
+        return true
+    end
+
+    if not self.state.known then
+        if manual then return self:_setEnabled(true, false) end
+        self:_scheduleBluetoothRecovery()
         return true
     end
 
@@ -284,7 +365,6 @@ function KindleClick:_connectClick(manual)
         if manual then
             self:_showMessage(_("未找到已配对的 Kindle Click，请先在 Kindle 原生设置中配对"), 5)
         end
-        self:_scheduleConnectionChecks()
         return false
     end
 
@@ -296,13 +376,17 @@ end
 
 function KindleClick:onToggleBluetooth()
     self:_refreshStatus(true)
+    if not self.state.known then
+        self:_showMessage(_("无法读取蓝牙状态；为避免错误切换，请先查看诊断信息"), 5)
+        return
+    end
     self:_setEnabled(not self.state.enabled, false)
 end
 
 function KindleClick:_connectedDeviceText()
     self:_requestStatusRefresh()
-    if not self.state.known then return _("已连接设备：读取中…") end
-    if not self.state.enabled then return _("已连接设备：蓝牙已关闭") end
+    if not self.state.known then return _("已连接设备：蓝牙状态未知") end
+    if self.state.enabled == false then return _("已连接设备：蓝牙已关闭") end
     return _("已连接设备：") .. (self.state.device_name or _("无"))
 end
 
@@ -322,6 +406,7 @@ function KindleClick:addToMainMenu(menu_items)
     menu_items.kindleclick = {
         text_func = function()
             self:_requestStatusRefresh()
+            if not self.state.known then return _("Kindle Click（蓝牙状态未知）") end
             if Bluetooth.isKindleClick(self.state.device_name) then
                 return _("Kindle Click（已连接）")
             elseif self.state.enabled then
@@ -332,6 +417,7 @@ function KindleClick:addToMainMenu(menu_items)
         sorting_hint = "network",
         checked_func = function()
             self:_requestStatusRefresh()
+            if not self.state.known then return nil end
             return self.state.enabled
         end,
         -- Long-press the parent entry for a one-touch switch.
@@ -341,7 +427,10 @@ function KindleClick:addToMainMenu(menu_items)
             return {
                 {
                     text = _("蓝牙"),
-                    checked_func = function() return self.state.enabled end,
+                    checked_func = function()
+                        if not self.state.known then return nil end
+                        return self.state.enabled
+                    end,
                     check_callback_updates_menu = true,
                     callback = function() self:onToggleBluetooth() end,
                 },
@@ -433,9 +522,8 @@ function KindleClick:onSuspend()
     local status = Bluetooth.getStatus()
     self._pre_sleep_enabled = status.enabled
 
-    -- Kindle broadcasts Suspend while entering the screensaver, before powerd
-    -- reaches its deep-suspend levels. Release Click cleanly in that window so
-    -- an interrupted native session cannot leave the radio occupied overnight.
+    -- Release Click through the native service on suspend. Event ordering and
+    -- deep-sleep behavior vary by firmware and are not assumed here.
     if status.click then Bluetooth.releaseClick() end
 end
 
@@ -444,9 +532,8 @@ function KindleClick:onResume()
     local restore = self._pre_sleep_enabled
     self._pre_sleep_enabled = nil
     self:_refreshStatus(true)
-    if self.auto_connect and restore
-        and not Bluetooth.isKindleClick(self.state.device_name) then
-        self:_connectClick(false)
+    if restore == true then
+        self:_scheduleBluetoothRecovery()
     end
 end
 

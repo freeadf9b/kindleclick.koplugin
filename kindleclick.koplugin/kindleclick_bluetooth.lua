@@ -1,10 +1,11 @@
 --[[--
 Thin wrapper around Kindle's native Bluetooth interfaces.
 
-On firmware 5.20.x, an official Click is a BLE HID device with Amazon
-VID:PID 0171:0443. Its connected input node is created by the native stack;
-kindle-input-pt is only a persistent pass-through and is NOT evidence of a
-connection. No input node is opened or grabbed by this module.
+On the tested KPW6 / 5.20.x setup, the Click input node was observed with
+VID:PID 0171:0443. The connected input node is created by the native stack;
+kindle-input-pt is a pass-through and is NOT evidence of a connection. These
+device observations are not a public Amazon firmware specification. No input
+node is opened or grabbed by this module.
 
 No background process is created here. Every function runs only when explicitly
 called by the UI plugin.
@@ -32,7 +33,7 @@ local function readProperty(property)
     local handle = io.popen(command)
     if not handle then return nil end
     local value = trim(handle:read("*a"))
-    handle:close()
+    if handle:close() ~= true then return nil end
     return value
 end
 
@@ -116,7 +117,9 @@ function Bluetooth.getPassThroughDevice()
 end
 
 function Bluetooth.isEnabled()
-    return (tonumber(readProperty("BTstate")) or 0) > 0
+    local state = tonumber(readProperty("BTstate"))
+    if state == nil then return nil end
+    return state > 0
 end
 
 function Bluetooth.getConnectedDeviceName()
@@ -129,9 +132,10 @@ function Bluetooth.getStatus()
     local devices = Bluetooth.getInputDevices()
     local click = findClick(devices)
     local passthrough = findPassThrough(devices)
+    local enabled = Bluetooth.isEnabled()
     -- A live Click HID node also proves that the radio is on, even if an
     -- unfamiliar firmware does not expose the legacy BTstate property.
-    local enabled = Bluetooth.isEnabled() or click ~= nil
+    if click then enabled = true end
     local device_name
     if click then
         device_name = "Kindle Click"
@@ -140,6 +144,8 @@ function Bluetooth.getStatus()
     end
     return {
         enabled = enabled,
+        known = enabled ~= nil,
+        status_error = enabled == nil and "Unable to read btfd BTstate" or nil,
         device_name = device_name,
         click = click,
         native_click = passthrough ~= nil,
@@ -149,32 +155,48 @@ end
 
 local function waitForEnabled(enabled)
     for _ = 1, 10 do
-        if Bluetooth.isEnabled() == enabled then return true end
+        local state = Bluetooth.getStatus().enabled
+        if state == enabled then return true end
+        if state == nil then return false, "status-unavailable" end
         os.execute("usleep 200000 2>/dev/null")
     end
-    return false
+    return false, enabled and "enable-not-confirmed" or "disable-not-confirmed"
+end
+
+local function setBluetoothProperty(property, value)
+    os.execute(string.format(
+        "timeout 2 lipc-set-prop %s %s %s >/dev/null 2>&1",
+        SERVICE, property, value))
+end
+
+function Bluetooth.requestEnabled(enabled)
+    if enabled then
+        -- Reuse the established compatibility writes. Public documentation
+        -- does not fully specify these properties; success is verified below.
+        setBluetoothProperty("BTflightMode", "0")
+        setBluetoothProperty("BTenable", "1:2")
+        return
+    end
+
+    -- Request off through the native flight-mode property. setEnabled retains
+    -- the older BTenable fallback if the requested state cannot be verified.
+    setBluetoothProperty("BTflightMode", "1")
 end
 
 function Bluetooth.setEnabled(enabled)
+    Bluetooth.requestEnabled(enabled)
     if enabled then
-        -- Newer ACE stacks need both: leaving Bluetooth flight mode is not
-        -- always enough to restore full operation after a deep sleep. Older
-        -- btfd builds simply reject the unknown property and honor BTenable.
-        os.execute(string.format(
-            "lipc-set-prop %s BTflightMode 0 >/dev/null 2>&1", SERVICE))
-        os.execute(string.format(
-            "lipc-set-prop %s BTenable 1:2 >/dev/null 2>&1", SERVICE))
-        return waitForEnabled(true)
+        local ok, reason = waitForEnabled(true)
+        if ok then return true end
+        return false, reason
     end
-
-    -- BTenable 0:x only lowers power on newer ACE stacks; BTflightMode really
-    -- turns the radio off. If an old btfd lacks it, use the legacy 0:1 fallback.
-    os.execute(string.format(
-        "lipc-set-prop %s BTflightMode 1 >/dev/null 2>&1", SERVICE))
-    if waitForEnabled(false) then return true end
-    os.execute(string.format(
-        "lipc-set-prop %s BTenable 0:1 >/dev/null 2>&1", SERVICE))
-    return waitForEnabled(false)
+    local ok, reason = waitForEnabled(false)
+    if ok then return true end
+    if reason == "status-unavailable" then return false, reason end
+    setBluetoothProperty("BTenable", "0:1")
+    ok, reason = waitForEnabled(false)
+    if ok then return true end
+    return false, reason
 end
 
 function Bluetooth.isKindleClick(name)
@@ -183,9 +205,9 @@ function Bluetooth.isKindleClick(name)
     return normalized:find("kindleclick", 1, true) ~= nil
 end
 
--- Parse Amazon's accessory-type database. Official Clicks may be named
--- "Amazon Fire TV Remote" in bt_config.conf, so their BleHidPageTurner type is
--- the reliable way to find the address without reading any pairing keys.
+-- Parse the observed accessory-type database. Some tested Click entries use
+-- BleHidPageTurner even when their saved name is generic. The format is not
+-- fully documented; this reads no pairing keys.
 function Bluetooth._findPageTurnerAddress(text)
     local current_address
     local is_page_turner = false
@@ -208,8 +230,7 @@ function Bluetooth._findPageTurnerAddress(text)
     return nil
 end
 
--- The accessory-type path handles native 5.20.x page turners; the older
--- name-based path remains as a fallback for other firmware and remotes.
+-- Prefer the observed page-turner type and retain the name-based fallback.
 function Bluetooth.findPairedKindleClick()
     local file = io.open(PAIRED_DEVICES_FILE, "r")
     if file then
@@ -259,9 +280,9 @@ function Bluetooth.connect(address)
     return setDeviceProperty("Connect", address)
 end
 
--- Gracefully release only the paired Click through Amazon's native API. This
--- does not unpair it, stop input_manager, power off Bluetooth, or affect other
--- Bluetooth devices. The native stack re-arms reconnection on resume/toggle.
+-- Request release of only the paired Click through the native API. This does
+-- not unpair it, stop input_manager, power off Bluetooth, or affect other
+-- Bluetooth devices. Firmware-specific reconnect behavior is not assumed.
 function Bluetooth.releaseClick()
     return setDeviceProperty("Disconnect", Bluetooth.findPairedKindleClick())
 end

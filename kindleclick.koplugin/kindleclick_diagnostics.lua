@@ -35,6 +35,7 @@ end
 
 function Diagnostics.collect()
     local status = Bluetooth.getStatus()
+    local enabled_text = status.enabled == nil and "未知" or tostring(status.enabled)
     local input = Device.input or {}
     local event_map = input.event_map or {}
     local lines = {
@@ -43,7 +44,9 @@ function Diagnostics.collect()
         "设备：" .. present(Device.model),
         "",
         "插件状态",
-        "蓝牙开启：" .. tostring(status.enabled),
+        "蓝牙开启：" .. enabled_text,
+        "蓝牙状态可信：" .. tostring(status.known),
+        "状态读取错误：" .. present(status.status_error),
         "已连接设备：" .. present(status.device_name),
         "原生 Click 通道：" .. tostring(status.native_click),
         "KOReader hasKeys：" .. tostring(Device:hasKeys()),
