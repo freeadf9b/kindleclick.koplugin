@@ -12,6 +12,8 @@ called by the UI plugin.
 
 local Bluetooth = {}
 
+local Log = require("kindleclick_log")
+
 local SERVICE = "com.lab126.btfd"
 local PAIRED_DEVICES_FILE = "/var/local/zbluetooth/bt_config.conf"
 local INPUT_DEVICES_FILE = "/proc/bus/input/devices"
@@ -26,12 +28,47 @@ local function trim(value)
     return value
 end
 
-local function readProperty(property)
+-- Moon's native Kindle backend uses typed, in-process LIPC calls. Besides
+-- avoiding shell overhead, set_int_property is important for BTflightMode:
+-- an untyped lipc-set-prop call may not perform the requested integer write.
+local function withLipc(callback)
+    local ok, lipc = pcall(require, "liblipclua")
+    if not ok or type(lipc) ~= "table" or type(lipc.init) ~= "function" then
+        return nil
+    end
+    local opened, handle = pcall(lipc.init, "com.github.koreader.kindleclick.bluetooth")
+    if not opened or not handle then return nil end
+    local called, result = pcall(callback, handle)
+    pcall(handle.close, handle)
+    if not called then return nil end
+    return result
+end
+
+-- Typed, in-process reads keep the UI thread off the shell; the lipc-get-prop
+-- fallback only runs on firmware whose liblipclua lacks the typed getter.
+local function readProperty(property, numeric, service)
+    service = service or SERVICE
+    local value = withLipc(function(handle)
+        local getter
+        if numeric then
+            getter = handle.get_int_property
+        else
+            getter = handle.get_string_property
+        end
+        if type(getter) ~= "function" then return nil end
+        return getter(handle, service, property)
+    end)
+    if numeric then
+        if type(value) == "number" then return tostring(value) end
+    elseif type(value) == "string" then
+        return value
+    end
+
     local command = string.format(
-        "timeout 2 lipc-get-prop %s %s 2>/dev/null", SERVICE, property)
+        "timeout 2 lipc-get-prop %s %s 2>/dev/null", service, property)
     local handle = io.popen(command)
     if not handle then return nil end
-    local value = trim(handle:read("*a"))
+    value = trim(handle:read("*a"))
     handle:close()
     return value
 end
@@ -107,21 +144,22 @@ function Bluetooth.getConnectedKindleClick()
     return findClick(Bluetooth.getInputDevices())
 end
 
-function Bluetooth.hasNativeClickSupport()
-    return findPassThrough(Bluetooth.getInputDevices()) ~= nil
-end
-
 function Bluetooth.getPassThroughDevice()
     return findPassThrough(Bluetooth.getInputDevices())
 end
 
 function Bluetooth.isEnabled()
-    return (tonumber(readProperty("BTstate")) or 0) > 0
-end
-
-function Bluetooth.getConnectedDeviceName()
-    if Bluetooth.getConnectedKindleClick() then return "Kindle Click" end
-    return readLipcDeviceName()
+    -- A live Click HID node proves the radio is on, whatever a stale property
+    -- says; this also keeps the recovery ladder from toggling a working radio.
+    if Bluetooth.getConnectedKindleClick() then return true end
+    local state = tonumber(readProperty("BTstate", true))
+    if state then return state > 0 end
+    -- Some builds do not expose the legacy BTstate property; the operating
+    -- mode is the next best signal (0 = idle/off).
+    local mode = tonumber(readProperty("currentBTOperatingMode", true))
+    if mode then return mode > 0 end
+    -- Nothing readable: report "unknown" instead of pretending Bluetooth is off.
+    return nil
 end
 
 -- One activity-driven snapshot, avoiding duplicate procfs reads and shell calls.
@@ -129,9 +167,9 @@ function Bluetooth.getStatus()
     local devices = Bluetooth.getInputDevices()
     local click = findClick(devices)
     local passthrough = findPassThrough(devices)
-    -- A live Click HID node also proves that the radio is on, even if an
-    -- unfamiliar firmware does not expose the legacy BTstate property.
-    local enabled = Bluetooth.isEnabled() or click ~= nil
+    local enabled = Bluetooth.isEnabled()
+    if click then enabled = true end
+    local known = enabled ~= nil
     local device_name
     if click then
         device_name = "Kindle Click"
@@ -140,6 +178,7 @@ function Bluetooth.getStatus()
     end
     return {
         enabled = enabled,
+        known = known,
         device_name = device_name,
         click = click,
         native_click = passthrough ~= nil,
@@ -147,34 +186,135 @@ function Bluetooth.getStatus()
     }
 end
 
-local function waitForEnabled(enabled)
-    for _ = 1, 10 do
-        if Bluetooth.isEnabled() == enabled then return true end
-        os.execute("usleep 200000 2>/dev/null")
-    end
-    return false
+local function writeProperty(property, value, numeric, service)
+    service = service or SERVICE
+    local accepted = withLipc(function(handle)
+        local setter = numeric and handle.set_int_property or handle.set_string_property
+        if type(setter) ~= "function" then return nil end
+        setter(handle, service, property, value)
+        return true
+    end) == true
+    if accepted then return true end
+
+    -- Keep a compatibility fallback, but preserve the property's native type.
+    local flag = numeric and "-i" or "-s"
+    local rendered = numeric and tostring(value) or string.format('"%s"', tostring(value))
+    local ok, _, code = os.execute(string.format(
+        "lipc-set-prop %s %s %s %s >/dev/null 2>&1",
+        flag, service, property, rendered))
+    return ok == true or ok == 0 or code == 0
 end
 
-function Bluetooth.setEnabled(enabled)
-    if enabled then
-        -- Newer ACE stacks need both: leaving Bluetooth flight mode is not
-        -- always enough to restore full operation after a deep sleep. Older
-        -- btfd builds simply reject the unknown property and honor BTenable.
-        os.execute(string.format(
-            "lipc-set-prop %s BTflightMode 0 >/dev/null 2>&1", SERVICE))
-        os.execute(string.format(
-            "lipc-set-prop %s BTenable 1:2 >/dev/null 2>&1", SERVICE))
-        return waitForEnabled(true)
-    end
+-- The master wireless switch lives in com.lab126.cmd: 0 is airplane/wireless
+-- off, and while it is off no Bluetooth request can succeed - the native UI
+-- cannot enable Bluetooth either.
+local CMD_SERVICE = "com.lab126.cmd"
 
-    -- BTenable 0:x only lowers power on newer ACE stacks; BTflightMode really
-    -- turns the radio off. If an old btfd lacks it, use the legacy 0:1 fallback.
-    os.execute(string.format(
-        "lipc-set-prop %s BTflightMode 1 >/dev/null 2>&1", SERVICE))
-    if waitForEnabled(false) then return true end
-    os.execute(string.format(
-        "lipc-set-prop %s BTenable 0:1 >/dev/null 2>&1", SERVICE))
-    return waitForEnabled(false)
+-- Read-only helper used in the status log: correlating airplane-mode changes
+-- with the native Bluetooth recovery is how the recovery trigger is identified.
+function Bluetooth.getWirelessState()
+    return readProperty("wirelessEnable", true, CMD_SERVICE)
+end
+
+-- wirelessEnable (com.lab126.cmd) is read in getDiagnosticProperties only: the
+-- user may deliberately keep airplane mode on with Bluetooth on, so the plugin
+-- must never write it.
+
+local function shell(command)
+    local handle = io.popen(command .. " 2>&1")
+    if not handle then return nil end
+    local output = handle:read("*a")
+    handle:close()
+    return output
+end
+
+-- Last-resort recovery for a wedged native stack. The upstart job that owns
+-- btfd is discovered by scanning /etc/upstart, because job names differ across
+-- firmware builds; only jobs whose name looks like Bluetooth are touched, and
+-- framework-critical jobs are skipped.
+local NEVER_RESTART = {
+    lab126 = true, powerd = true, cvm = true, winmgr = true,
+    appmgrd = true, pillow = true, blanket = true, framework = true,
+}
+
+-- acsbtfd owns the controller link; btmanagerd is the higher-level manager.
+local BT_PRIORITY = { acsbtfd = 1, btfd = 2, btservice = 3, btmanagerd = 4 }
+
+function Bluetooth.findBtJobs()
+    local jobs, seen = {}, {}
+    local output = shell(
+        "grep -l -i -E 'acsbtfd|btmanager|/usr/bin/btfd' /etc/upstart/*.conf 2>/dev/null")
+    for path in (output or ""):gmatch("[^\n]+") do
+        local name = path:match("([^/]+)%.conf$")
+        if name and name:lower():find("bt", 1, true) and not NEVER_RESTART[name] then
+            if not seen[name] then
+                seen[name] = true
+                table.insert(jobs, name)
+            end
+        end
+    end
+    table.sort(jobs, function(a, b)
+        return (BT_PRIORITY[a] or 99) < (BT_PRIORITY[b] or 99)
+    end)
+    return jobs
+end
+
+function Bluetooth.getBtJobState()
+    return shell("PATH=/sbin:/usr/sbin:$PATH; initctl list 2>/dev/null | grep -i -E 'bt|bluetooth'")
+end
+
+local DAEMON_LOGS = { "/tmp/btfd-acs.err", "/tmp/btmanagerd.err" }
+
+function Bluetooth.logDaemonLogs(label)
+    for _, path in ipairs(DAEMON_LOGS) do
+        local output = shell("tail -12 " .. path .. " 2>/dev/null")
+        for line in (output or ""):gmatch("[^\n]+") do
+            Log.write("daemon", label .. ": " .. path .. ": " .. line)
+        end
+    end
+end
+
+function Bluetooth.logKernelTail()
+    local output = shell(
+        "dmesg 2>/dev/null | grep -i -E 'wmt|stpbt|bluetooth|hid-generic' | tail -20 2>/dev/null")
+    for line in (output or ""):gmatch("[^\n]+") do
+        Log.write("kernel", line)
+    end
+end
+
+-- acsbtfd is started by btmanagerd ("start on started btmanagerd" in
+-- acsbtfd.conf), so the chain has to be stopped child-first and started
+-- parent-first; starting btmanagerd is what brings acsbtfd back.
+function Bluetooth.restartService()
+    local jobs = Bluetooth.findBtJobs()
+    Log.write("service", "BT upstart jobs: " .. table.concat(jobs, ","))
+    Log.write("service", "before: " .. tostring(Bluetooth.getBtJobState() or "?"))
+    Bluetooth.logDaemonLogs("before")
+
+    for _, job in ipairs(jobs) do
+        Log.write("service", "stopping " .. job)
+        Log.write("service", job .. " stop: " .. tostring(
+            shell("PATH=/sbin:/usr/sbin:/bin:/usr/bin:$PATH; stop " .. job) or ""))
+    end
+    os.execute("sleep 1")
+
+    for i = #jobs, 1, -1 do
+        local job = jobs[i]
+        Log.write("service", "starting " .. job)
+        Log.write("service", job .. " start: " .. tostring(
+            shell("PATH=/sbin:/usr/sbin:/bin:/usr/bin:$PATH; start " .. job) or ""))
+    end
+    os.execute("sleep 2")
+
+    local state = Bluetooth.getBtJobState() or ""
+    for _, job in ipairs(jobs) do
+        if not state:find(job .. " start/running", 1, true) then
+            Log.write("service", job .. " not running, starting again")
+            shell("PATH=/sbin:/usr/sbin:/bin:/usr/bin:$PATH; start " .. job)
+        end
+    end
+    Log.write("service", "after: " .. tostring(Bluetooth.getBtJobState() or "?"))
+    return jobs
 end
 
 function Bluetooth.isKindleClick(name)
@@ -248,31 +388,124 @@ local function setDeviceProperty(property, address)
     if not address or not address:match("^%x%x:%x%x:%x%x:%x%x:%x%x:%x%x$") then
         return false
     end
-    -- address is strictly validated above, so it is safe to pass to the shell.
-    os.execute(string.format(
-        'lipc-set-prop %s %s "%s" >/dev/null 2>&1',
-        SERVICE, property, address))
-    return true
+    return writeProperty(property, address, false)
 end
 
 function Bluetooth.connect(address)
     return setDeviceProperty("Connect", address)
 end
 
--- Gracefully release only the paired Click through Amazon's native API. This
--- does not unpair it, stop input_manager, power off Bluetooth, or affect other
--- Bluetooth devices. The native stack re-arms reconnection on resume/toggle.
-function Bluetooth.releaseClick()
-    return setDeviceProperty("Disconnect", Bluetooth.findPairedKindleClick())
+-- Request-only form used by the asynchronous backend; the returned value says
+-- whether btfd accepted the request, not whether the radio already switched.
+function Bluetooth.requestEnabled(enabled)
+    if enabled then
+        writeProperty("BTflightMode", 0, true)
+        return writeProperty("BTenable", "1:2", false)
+    end
+    local flight = writeProperty("BTflightMode", 1, true)
+    local legacy = writeProperty("BTenable", "0:1", false)
+    return flight or legacy
+end
+
+-- zenos uses the alternate native enable mode. It is only a delayed fallback
+-- after the normal 1:2 request has had time to take effect.
+function Bluetooth.requestAlternateEnabled()
+    writeProperty("BTflightMode", 0, true)
+    return writeProperty("BTenable", "1:1", false)
+end
+
+local function readHash(property)
+    local ok, lipc = pcall(require, "libopenlipclua")
+    if not ok or type(lipc) ~= "table" or type(lipc.open_no_name) ~= "function" then
+        return nil
+    end
+    local opened, handle = pcall(lipc.open_no_name)
+    if not opened or not handle then return nil end
+    local called, values = pcall(function()
+        local input = handle:new_hasharray()
+        local result = handle:access_hash_property(SERVICE, property, input)
+        local converted = result and result:to_table() or {}
+        if result then pcall(result.destroy, result) end
+        pcall(input.destroy, input)
+        return converted
+    end)
+    pcall(handle.close, handle)
+    if not called or type(values) ~= "table" then return nil end
+    return values
+end
+
+local function normalizeDevice(raw, paired, connected_state)
+    if type(raw) ~= "table" then return nil end
+    local address = raw.address or raw.Address or raw.addr or raw.mac or raw.MAC
+        or raw.bdaddr or raw.BDAddr or raw.bd_address or raw.deviceAddress or raw.macAddress
+    if type(address) ~= "string"
+        or not address:match("^%x%x:%x%x:%x%x:%x%x:%x%x:%x%x$") then return nil end
+    local name = raw.name or raw.Name or raw.bd_name or raw.deviceName or raw.friendlyName
+    return {
+        address = address:upper(),
+        name = type(name) == "string" and name ~= "" and name or address:upper(),
+        protocol = "",
+        paired = raw.is_paired == 1 or raw.is_paired == true or paired or nil,
+        connected = raw.is_connected == 1 or raw.is_connected == true or connected_state or nil,
+        rssi = tonumber(raw.rssi or raw.RSSI),
+    }
+end
+
+function Bluetooth.getDeviceList()
+    local discovered = readHash("ListDiscovered")
+    local paired = readHash("ListPaired")
+    local connected_list = readHash("ListConnected")
+    if not discovered or not paired or not connected_list then
+        return nil, "Unable to read native btfd device lists"
+    end
+    local devices, by_address = {}, {}
+    local function merge(list, is_paired, is_connected)
+        for _, raw in ipairs(list) do
+            local item = normalizeDevice(raw, is_paired, is_connected)
+            if item then
+                local key = item.address:upper()
+                local existing = by_address[key]
+                if not existing then
+                    existing = item
+                    by_address[key] = item
+                    table.insert(devices, existing)
+                else
+                    existing.paired = existing.paired or item.paired
+                    existing.connected = existing.connected or item.connected
+                    if existing.name == existing.address and item.name ~= item.address then
+                        existing.name = item.name
+                    end
+                end
+            end
+        end
+    end
+    merge(discovered, false, false)
+    merge(paired, true, false)
+    merge(connected_list, true, true)
+    return devices
 end
 
 -- Read-only, on-demand values for the diagnostic view.
 function Bluetooth.getDiagnosticProperties()
+    -- BTflightMode is write-only on this firmware: reading it makes btfd log a
+    -- type error and returns nothing, so it is deliberately not in this list.
     return {
-        BTstate = readProperty("BTstate"),
-        BTflightMode = readProperty("BTflightMode"),
-        BTconnectedDevName = readProperty("BTconnectedDevName"),
+        BTstate = readProperty("BTstate", true),
+        BTconnectedDevName = readProperty("BTconnectedDevName", false),
+        currentBTOperatingMode = readProperty("currentBTOperatingMode", true),
+        isBtchRunning = readProperty("isBtchRunning", true),
+        wirelessEnable = readProperty("wirelessEnable", true, CMD_SERVICE),
     }
+end
+
+-- One compact line for the recovery log.
+function Bluetooth.describe()
+    local properties = Bluetooth.getDiagnosticProperties()
+    return string.format(
+        "BTstate=%s mode=%s btch=%s wireless=%s name=%s",
+        tostring(properties.BTstate),
+        tostring(properties.currentBTOperatingMode), tostring(properties.isBtchRunning),
+        tostring(properties.wirelessEnable), tostring(properties.BTconnectedDevName))
 end
 
 return Bluetooth
