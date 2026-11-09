@@ -13,7 +13,10 @@
 - 在 **设置 → 网络 → Kindle Click** 中加入蓝牙开关。
 - 显示当前蓝牙连接的设备名称。
 - 启动 KOReader 或唤醒时让原生系统恢复蓝牙和 Click 连接（可关闭自动连接）。
-- 按电源键或 Click 双侧键进入休眠时主动断开并释放 Click；重新开启蓝牙前清理残留会话，避免深度休眠后无法重连。
+- 休眠前仅保存蓝牙状态，不干扰原生连接；唤醒后通过原生 btfd 恢复蓝牙，并主动重新连接 Click。
+- 深度休眠后若蓝牙没有自行恢复，插件会在唤醒后只发送一次开启请求，然后最多 30 分钟只读等待系统恢复；不再反复重试，也不会自动重启蓝牙服务。每一步都写入 `kindleclick.log`。
+- 读不到蓝牙状态时（`BTstate` 与 `currentBTOperatingMode` 都失败），状态栏显示 `?`、菜单标注“蓝牙状态未知”，并且不会把“读不到”误报成“已关闭”，也不会盲目切换。
+- 原生系统也开不了蓝牙时，插件不会重启 `acsbtfd` / `btmanagerd`（重启只重置用户态，重建不了 WMT 传输层，还可能推迟系统自愈）：唤醒时只发送一次开启请求，随后最多 30 分钟只读等待，状态栏会自动更新。插件不会改动飞行模式或 Wi-Fi。
 - 提供“连接 Kindle Click”“刷新连接状态”和“诊断信息”菜单项。
 - 长按“Kindle Click”上一级菜单项，可以直接开关蓝牙。
 - 三种状态共用**同一个图标位**，不再用有无图标表示开关：
@@ -26,15 +29,21 @@
 
 ### 截图
 
-<!-- 将截图放入 screenshots/ 目录后，删除本段首尾的注释标记即可显示：
+**菜单与蓝牙控制**
+
 ![Kindle Click 菜单与蓝牙控制](screenshots/menu.png)
+
+**三种连接状态共用同一个图标位**
+
 ![三种连接状态共用同一个图标位](screenshots/status-icons.png)
+
+**在 Bookends 中配置状态显示**
+
 ![在 Bookends 状态栏中显示 Kindle Click](screenshots/bookends.png)
--->
 
 ### 安装或升级
 
-1. 先在 Kindle 原生系统中完成 Kindle Click 配对。本插件不扫描和配对设备。
+1. 先在 Kindle 原生系统中完成 Kindle Click 配对。本插件不提供扫描和配对界面。
 2. 升级旧版时，先删除旧的 `kindleclick.koplugin` 文件夹，再将新版完整复制到：
 
    ```text
@@ -49,6 +58,16 @@
 进入 **Kindle Click → 状态栏图标（三种状态）**，分别设置“蓝牙关闭”“蓝牙开启，Click 未连接”“Kindle Click 已连接”。
 
 每个状态都有预设图标和“自定义 Unicode 码位”。例如 `U+E7B1` 是蓝牙关闭、`U+E7AE` 是蓝牙、`U+EB53` 是遥控器。自定义输入支持 `U+EB53`、`0xEB53` 或 `EB53` 三种写法。若所选字形不在字体中，可能显示为空框。
+
+**随插件附带的图标字体**
+
+插件自带 `fonts/kindleclick-icons.ttf`，包含三种状态各一个字形：`U+E900` 蓝牙关闭、`U+E901` 蓝牙开启、`U+E902` 已连接。字形按整字高绘制，三个图标的垂直中心与状态栏时间数字的中心对齐；遥控器保持原始比例、不旋转。首次启动时插件会把它复制到 `koreader/fonts/` 并注册为 KOReader 的额外回退字体，然后提示重启一次 KOReader。重启后在 **状态栏图标（三种状态）** 里点“一键使用我的图标（关 / 开 / 已连接）”即可。字体升级时插件会自动覆盖旧字体并再次提示重启。
+
+需要注意：
+
+- KOReader 的“额外 UI 回退字体”菜单只列出文件名以 Noto Sans 开头的字体，本字体不会出现在该菜单里。如果在该菜单里改动过回退字体列表，本项会被移除，插件下次启动会自动重新注册（再重启一次即可恢复）。
+- 字体只包含这三个字形，其它文字仍使用你原来的字体，不会互相影响。
+- **重复更新插件不会重复注册**：注册前按绝对路径查重，并会清掉同名（`kindleclick-icons.ttf`）的旧路径，回退字体列表里始终只有一条本字体记录。
 
 “在状态栏显示三态图标（含 Bookends）”是本插件的总开关；关闭后会同时从原生状态栏和 Bookends 移除本插件内容。
 
@@ -89,8 +108,11 @@
 
 - 没有常驻轮询，没有后台守护进程，也不会阻止 Kindle 休眠。
 - 状态只在启动、唤醒、菜单访问、状态栏本来就要刷新、设备热插拔或手动操作时读取。
-- 菜单和状态栏触发的状态读取至少有 30 秒间隔，且仅在已有界面活动时执行。
-- 发起连接后仅在第 2、5、10、20 秒做有限次状态确认；连接成功或确认结束后不再保留定时器。
+- 菜单标题和状态栏触发的状态读取至少有 30 秒间隔，且仅在已有界面活动时执行；展开子菜单会立即刷新一次。
+- 发起连接后会立即确认一次，随后仅在第 2、5、10、20 秒各确认一次；连接成功或确认结束后不再保留定时器。
+- 唤醒恢复只在“睡前蓝牙是开的、唤醒后读到的却是关的”时启动；每次唤醒只发送一次开启请求，失败后不再自动重试，也不会重启蓝牙服务。
+- 所有开启尝试失败后会转入**只读观察**（第 1、3、6、10、15、20、25、30 分钟各查一次状态，不再发送任何蓝牙命令）；原生栈自行恢复时图标会自动更新并重新连接 Click。
+- 每次开关、唤醒、恢复步骤和状态变化只写一行文本日志，不增加轮询。
 - 图标选择只读写 KOReader 设置并触发一次界面刷新，不增加定时器或字体扫描。
 - 诊断信息仅在手动打开时采集，不启动扫描或监听。
 - 退出 KOReader 时不会擅自关闭蓝牙；如需省电，可在菜单中手动关闭。
@@ -107,24 +129,34 @@
    /mnt/us/koreader/kindleclick-diagnostic.txt
    ```
 
-4. 若仍显示“已连接设备：无”、无法翻页，或亮度/休眠侧键无效，请提供该文件。诊断包含输入节点、相关进程和 LIPC 属性，但不读取或导出蓝牙 LinkKey。
+4. 若仍显示“已连接设备：无”、无法翻页、无法开启蓝牙，或亮度/休眠侧键无效，请提供该文件。诊断包含输入节点、相关进程、LIPC 属性、蓝牙内核模块、BT 相关 upstart 作业及其配置（`acsbtfd` / `btmanagerd` 等）、守护进程 stderr（`/tmp/*.err`）、WMT 传输层状态（`/dev/stpbt`、模块文件、`acsbtfd` 打开的 fd）、内核日志与系统日志尾部，以及插件日志 `kindleclick.log` 的尾部；但不读取或导出蓝牙 LinkKey。
 
 **公开分享诊断文件前请先检查并遮盖蓝牙地址等隐私信息。**
 
-仅支持 Kindle，不适用于 Kobo、Android 或桌面版 KOReader。建议使用当前 KOReader 版本。1.2.0 的连接、翻页、侧键、三态图标和 Bookends 显示已通过 KPW6 / 5.20.1 实机确认；1.2.1 仅移除 `_meta.lua` 中已弃用的 `name` 字段。1.2.2 新增休眠前主动释放 Click 及开启蓝牙前清理残留会话。1.2.3 完善新旧 btfd 开关指令兼容，并增加睡前状态快照，避免唤醒时误开启睡前已关闭的蓝牙。1.2.2 及 1.2.3 均通过全部静态/逻辑回归测试；隔夜深度休眠后的恢复效果仍需实机验证。
+### 蓝牙完全无法开启时
+
+先按一下菜单里的蓝牙开关，或直接唤醒设备等待：插件只发送一次开启请求，然后最多 30 分钟只读等待系统恢复；蓝牙已开启时**不重启服务**（重启会打断正在建立的连接），只发一次 Connect。实机证据表明重启 `acsbtfd` / `btmanagerd` 只重置用户态、重建不了 WMT 传输层，还可能推迟系统自愈，因此插件不再提供重启入口；如需现场信息，请提供**诊断信息**。全过程写入 `kindleclick.log`，不会改动飞行模式或 Wi-Fi。
+
+仅支持 Kindle，不适用于 Kobo、Android 或桌面版 KOReader。根据实机闪退反馈，1.3.1 移除了“蓝牙设备管理”界面及独立一级入口，配对请使用 Kindle 原生设置；1.3.2 修复了关闭蓝牙后可能被残留开启请求重新打开、以及部分固件上连接验证误报失败的问题；1.4.0 加入唤醒恢复阶梯与持久化日志；1.5.1 加入手动深度恢复（重启原生蓝牙作业），并保证不改变飞行模式与 Wi-Fi 状态；1.5.2 按实机诊断把恢复对象确认为 `acsbtfd` / `btmanagerd`，并补充作业配置与内核日志采集；1.5.3 按 `acsbtfd` 由 `btmanagerd` 拉起的依赖关系修正重启顺序，并采集守护进程 stderr；1.5.4 记录 WMT 传输层（`/dev/stpbt`、模块、`acsbtfd` 的 fd）以便判断控制器为何无法重新初始化；1.5.5 加入失败后的只读观察窗口（最长 12 分钟），匹配实机观察到的“原生栈会自行恢复”；1.5.6 不再读取只写的 `BTflightMode`（避免 btfd 日志刷错误），并在状态日志里记录飞行模式开关值；1.5.7 区分“读不到状态”与“蓝牙关闭”（图标 `?`、菜单显示状态未知、不盲目切换）；1.6.0 试过“临时关闭飞行模式 + 等待原生恢复”，但实机日志（`wireless=0` 时 phase 1 直接成功）证明蓝牙本来就可在飞行模式打开时启用，因此 1.6.1 撤销该做法，改为“蓝牙已开启时不重启服务，只等 Click 连上”；1.7.0 加入随插件附带的三态图标字体（`fonts/kindleclick-icons.ttf`，U+E900–U+E902），首次启动自动安装并注册为 KOReader 回退字体；1.7.1 把字形放大到整字高，字体升级会自动覆盖旧文件；1.7.2 让遥控器图标保持原始比例并顺时针倾斜 20°，避免在状态栏里缩成一条竖线；1.7.3 改用 FontCreator 调整后的字体，遥控器恢复不旋转、三态图标的垂直中心与时间数字对齐，并保证重复更新不会重复注册回退字体；1.7.4 替换为你最新一版字体；1.7.5 在菜单“使用说明”后显示插件版本号（直接取自 `_meta.lua`）；1.7.6 按 Moon 的做法把唤醒恢复改为“只发一次开启请求 + 最多 30 分钟只读等待”，删除复位射频与 `BTenable=1:1` 阶梯以及自动重启蓝牙作业，把重启作业移入手动“重启蓝牙服务（实验）”；关闭蓝牙时 `BTflightMode=1` 成功即止，每次 LIPC 写入都记录属性、值与 `BTstate`；1.7.7 删除菜单中重复的“深度恢复”和“重启蓝牙服务（实验）”（自动流程已覆盖，重启从未重建传输层），并在唤醒时停止睡前遗留的只读观察、立即刷新状态，避免短暂显示旧的关闭图标和重复 Connect。本版仅使用 Kindle 原生 btfd 与 HID 通道，不依赖 KHP 或其他守护进程。插件依赖 KOReader 的状态栏扩展接口（`addAdditionalFooterContent`）与 Bookends 的 `%plugin_content`，请使用较新的 KOReader 版本。仓库未附带自动化测试，当前结论来自代码审查与静态检查；深度休眠恢复已在 KPW6 上完成一次两小时休眠验证（原生自行恢复，插件未写入），更长休眠与其他固件仍需观察。完整变更见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。
 
 ### 文件
 
 ```text
 kindleclick.koplugin/
 ├── _meta.lua
-├── kindleclick_bluetooth.lua    # 蓝牙状态、原生 Click 识别与旧版连接回退
-├── kindleclick_diagnostics.lua  # 手动触发的只读诊断
-├── kindleclick_icons.lua        # 三态图标、预设及自定义 Unicode 码位
-├── main.lua                     # 菜单、状态栏、翻页映射和有限状态确认
+├── fonts/
+│   └── kindleclick-icons.ttf       # 三态图标字体（U+E900–U+E902）
+├── kindleclick_backend.lua         # 原生异步开关与设备状态确认
+├── kindleclick_bluetooth.lua       # btfd、设备状态、原生 Click 识别
+├── kindleclick_diagnostics.lua     # 手动触发的只读诊断
+├── kindleclick_icons.lua           # 三态图标、预设及自定义 Unicode 码位
+├── kindleclick_log.lua             # 唤醒恢复日志（kindleclick.log）
+├── main.lua                        # 菜单、状态栏、翻页映射和自动恢复
 └── README.md
 ```
 
+
+图标源文件（SVG、PNG、FontCreator 工程和导出的 TTF）放在仓库的 `assets/icon-src/`，不会打进插件安装包。
 ---
 
 ## English
@@ -136,7 +168,10 @@ A standalone KOReader plugin for **Kindle** only. It controls Kindle's native Bl
 - Adds a Bluetooth switch under **Settings → Network → Kindle Click**.
 - Shows the name of the currently connected Bluetooth device.
 - Lets the native system restore Bluetooth and the Click connection when KOReader starts or the device wakes; automatic connection can be disabled.
-- Cleanly disconnects and releases the Click when the power button or the Click's sleep gesture enters sleep, and clears a stale session before re-enabling Bluetooth to restore reconnection after deep sleep.
+- Saves only the Bluetooth state before sleep, then uses bounded asynchronous native btfd recovery and explicitly reconnects Click.
+- If Bluetooth does not come back after a deep sleep, the plugin sends a single enable request after waking and then waits read-only for up to 30 minutes; it does not retry on its own or restart the native services. Every step is written to `kindleclick.log`.
+- When the state cannot be read (`BTstate` and `currentBTOperatingMode` both fail), the footer shows `?`, the menu says “Bluetooth state unknown”, and the plugin neither reports a false “off” nor toggles blindly.
+- When even the native system cannot enable Bluetooth, the plugin does not restart `acsbtfd` / `btmanagerd` (a restart only resets userspace, does not rebuild the WMT transport, and can delay the native stack's own recovery): after waking it sends a single enable request and then waits read-only for up to 30 minutes while the footer updates itself. The plugin never touches airplane mode or Wi-Fi.
 - Provides **Connect Kindle Click**, **Refresh connection status**, and **Diagnostics** menu items.
 - Long-press the parent **Kindle Click** menu item to toggle Bluetooth directly.
 - Uses **one icon position for all three states**, rather than showing or hiding an icon:
@@ -149,15 +184,21 @@ A standalone KOReader plugin for **Kindle** only. It controls Kindle's native Bl
 
 ### Screenshots
 
-<!-- Place screenshots in the screenshots/ directory, then remove the comment markers around this block:
+**Menu and Bluetooth controls**
+
 ![Kindle Click menu and Bluetooth controls](screenshots/menu.png)
+
+**Three connection states sharing one icon position**
+
 ![Three connection states sharing one icon position](screenshots/status-icons.png)
+
+**Configuring the status display in Bookends**
+
 ![Kindle Click status displayed by Bookends](screenshots/bookends.png)
--->
 
 ### Installation and upgrades
 
-1. Pair the Kindle Click in Kindle's native settings first. This plugin does not scan for or pair devices.
+1. Pair the Kindle Click in Kindle's native settings first. This plugin does not provide a scanning or pairing interface.
 2. When upgrading, delete the old `kindleclick.koplugin` folder before copying the complete new folder to:
 
    ```text
@@ -172,6 +213,16 @@ A standalone KOReader plugin for **Kindle** only. It controls Kindle's native Bl
 Go to **Kindle Click → Status icons (three states)** and configure **Bluetooth off**, **Bluetooth on, Click not connected**, and **Kindle Click connected** separately.
 
 Each state offers preset icons and a **Custom Unicode codepoint** option. For example, `U+E7B1` is Bluetooth off, `U+E7AE` is Bluetooth, and `U+EB53` is a remote control. Custom input accepts `U+EB53`, `0xEB53`, or `EB53`. A glyph missing from the selected font may appear as an empty box.
+
+**The bundled icon font**
+
+The plugin ships `fonts/kindleclick-icons.ttf` with one glyph per state: `U+E900` Bluetooth off, `U+E901` Bluetooth on, and `U+E902` connected. Glyphs are drawn at full em height and their vertical centres are aligned with the footer digits; the remote glyph keeps its original proportions without rotation. On first start the plugin copies it to `koreader/fonts/`, registers it as an additional KOReader UI fallback font, and asks you to restart KOReader once. After restarting, choose **Use my icons (off / on / connected)** under **Status icons (three states)**. A font update is copied over the old file automatically and asks for another restart.
+
+Two things to know:
+
+- KOReader's “Additional UI fallback fonts” menu only lists fonts whose name starts with Noto Sans, so this font will not appear there. If that fallback list is edited in that menu, this entry is removed and the plugin re-registers it on the next start (one more restart restores it).
+- The font contains only these three glyphs; all other text keeps using your normal font.
+- **Updating the plugin never registers it twice**: registration checks the exact absolute path and drops any older path ending in `kindleclick-icons.ttf`, so the fallback list always holds a single entry for this font.
 
 **Show three-state icons in the status bar (including Bookends)** is the plugin's display switch. Turning it off removes this plugin's content from both KOReader's stock footer and Bookends.
 
@@ -212,8 +263,11 @@ The brightness buttons support native press-and-hold repetition. Sleep can only 
 
 - No persistent polling, no background daemon, and no interference with Kindle sleep.
 - Status is read only at startup, resume, menu access, an already-occurring footer redraw, input-device hotplug, or a manual action.
-- Menu- and footer-triggered status reads are at least 30 seconds apart and run only when there is already UI activity.
-- After initiating a connection, status checks occur only at 2, 5, 10, and 20 seconds. No timer remains after connection succeeds or the final check finishes.
+- Menu-title and footer-triggered status reads are at least 30 seconds apart and run only when there is already UI activity; expanding the submenu refreshes immediately.
+- After initiating a connection, status is confirmed once immediately and then only at 2, 5, 10, and 20 seconds. No timer remains after the connection succeeds or the final check finishes.
+- Wake recovery runs only when Bluetooth was on before sleep and reads as off after waking. Each wake sends a single enable request; a failure is not retried automatically and no service is restarted.
+- After every failed attempt the plugin switches to a **read-only watch** (checks at 1, 3, 6, 10, 15, 20, 25 and 30 minutes without sending any Bluetooth command); if the native stack recovers by itself, the icon updates and the Click is reconnected.
+- Every power request, resume, recovery step, and status change writes one line of text to the log; no polling is added.
 - Icon selection only reads or writes KOReader settings and triggers one UI refresh; it adds no timer or font scanning.
 - Diagnostics are collected only when explicitly opened and do not start scanning or listening.
 - Exiting KOReader does not turn off Bluetooth without permission. Turn Bluetooth off manually when needed to save power.
@@ -230,20 +284,30 @@ If the Click disconnects while you are reading without interacting with the devi
    /mnt/us/koreader/kindleclick-diagnostic.txt
    ```
 
-4. If the plugin still shows “Connected device: None,” page turning does not work, or the brightness/sleep side buttons are unresponsive, provide this file. Diagnostics include input devices, relevant processes, and LIPC properties, but do not read or export Bluetooth LinkKeys.
+4. If the plugin still shows “Connected device: None,” page turning does not work, Bluetooth cannot be enabled, or the brightness/sleep side buttons are unresponsive, provide this file. Diagnostics include input devices, relevant processes, LIPC properties, Bluetooth kernel modules, BT-related upstart jobs and their configs (`acsbtfd` / `btmanagerd`, …), daemon stderr (`/tmp/*.err`), WMT transport state (`/dev/stpbt`, module files, the fds held by `acsbtfd`), the tails of the kernel and system logs, and the tail of the plugin log `kindleclick.log`; they do not read or export Bluetooth LinkKeys.
 
 **Before sharing a diagnostic report publicly, review it and redact private information such as Bluetooth addresses.**
 
-Kindle only; Kobo, Android, and desktop KOReader are not supported. A current KOReader version is recommended. Version 1.2.0 was verified on KPW6 / firmware 5.20.1 for connection, page turning, side buttons, three-state icons, and Bookends display. Version 1.2.1 only removes the deprecated `name` field from `_meta.lua`. Version 1.2.2 releases the Click before sleep and clears stale sessions before enabling Bluetooth. Version 1.2.3 adds new/old btfd command compatibility and a pre-sleep state snapshot, preventing resume from enabling Bluetooth that was explicitly off before sleep. Versions 1.2.2 and 1.2.3 pass all static and logic regression tests; overnight deep-sleep recovery still requires on-device verification.
+### When Bluetooth cannot be enabled at all
+
+Try the Bluetooth switch in the menu, or simply wake the device and wait: the plugin sends a single enable request and then waits read-only for up to 30 minutes; when Bluetooth is already on it does **not** restart the services (a restart interrupts a connection in progress) and only sends one Connect. On-device evidence shows that restarting `acsbtfd` / `btmanagerd` only resets userspace, does not rebuild the WMT transport, and can delay the native stack's own recovery, so the plugin no longer offers a restart entry; provide **Diagnostics** if you want the on-device state. Everything is logged to `kindleclick.log`, and the plugin never changes airplane mode or Wi-Fi.
+
+Kindle only; Kobo, Android, and desktop KOReader are not supported. Following an on-device crash report, version 1.3.1 removed the Bluetooth Device Manager interface and its separate first-level Network entry; use Kindle's native settings for pairing. Version 1.3.2 fixed a stale enable request that could turn Bluetooth back on after it had been switched off, and a false connect-verification failure on some firmware builds. Version 1.4.0 added the wake-recovery ladder and a persistent log for the “Bluetooth shows off and cannot be enabled after a long sleep” problem. Version 1.5.1 added the manual deep recovery for the case where the native system cannot enable Bluetooth either, without ever changing airplane mode or Wi-Fi. Version 1.5.2 pins the recovery targets to `acsbtfd` / `btmanagerd` based on an on-device diagnostic, and adds job-config and kernel-log capture. Version 1.5.3 fixes the restart order to match the `acsbtfd` → started by `btmanagerd` dependency and captures daemon stderr. Version 1.5.4 records the WMT transport state (`/dev/stpbt`, module files, the fds held by `acsbtfd`) to determine why the controller cannot be re-initialised. Version 1.5.5 adds the post-failure read-only watch (up to 12 minutes) to match the observed behaviour that the native stack recovers on its own. Version 1.5.6 stops reading the write-only `BTflightMode` property (which made btfd log type errors) and records the airplane-mode switch value in the status log. Version 1.5.7 distinguishes “cannot read the state” from “Bluetooth is off” (`?` icon, unknown state in the menu, no blind toggling). Version 1.6.0 tried “turn airplane mode off temporarily + wait”, but on-device logs show that phase 1 succeeds with `wireless=0`, i.e. Bluetooth can be enabled while airplane mode is on, so 1.6.1 drops that approach and instead never restarts the services while Bluetooth is already on — it just waits for the Click. Version 1.7.0 adds the bundled three-state icon font (`fonts/kindleclick-icons.ttf`, U+E900–U+E902), installed and registered as a KOReader fallback font on first start; version 1.7.1 draws the glyphs at full em height and replaces an outdated installed font automatically; version 1.7.2 keeps the remote icon's original aspect ratio and rotates it 20° clockwise so it no longer collapses into a vertical line; version 1.7.3 ships the FontCreator-tuned font, with the remote upright again, all three glyphs vertically centred on the footer digits, and duplicate-free fallback registration; version 1.7.4 replaces it with your latest revision; version 1.7.5 shows the plugin version next to the **Usage notes** menu item, read straight from `_meta.lua`; version 1.7.6 follows Moon's approach and changes wake recovery to a single enable request plus a read-only wait of up to 30 minutes, removes the radio-reset / `BTenable=1:1` ladder and the automatic service restart, and moves restarting the jobs into a manual **Restart Bluetooth services (experimental)** item; turning Bluetooth off stops at a successful `BTflightMode=1`, and every LIPC write logs the property, value and `BTstate`. Version 1.7.7 removes the redundant Deep recovery and Restart services menu items (the automatic path already covers them, and restarting never rebuilt the transport), and stops any stale passive watch on resume so the footer does not briefly show the old off icon or send a duplicate Connect. This version uses only Kindle's native btfd and HID path and does not depend on KHP or any other daemon. The plugin relies on KOReader's footer extension API (`addAdditionalFooterContent`) and Bookends' `%plugin_content`, so use a reasonably recent KOReader. The repository ships no automated test suite; the current statement is based on code review and static checks, and deep-sleep recovery has been verified once on a KPW6 with a two-hour sleep (the native stack restored Bluetooth by itself while the plugin sent nothing); longer sleeps and other firmware still need observation. See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the full changelog.
 
 ### Files
 
 ```text
 kindleclick.koplugin/
 ├── _meta.lua
-├── kindleclick_bluetooth.lua    # Bluetooth status, native Click detection, and legacy connection fallback
-├── kindleclick_diagnostics.lua  # Read-only diagnostics triggered manually
-├── kindleclick_icons.lua        # Three-state icons, presets, and custom Unicode codepoints
-├── main.lua                     # Menu, footer status, page-turn mappings, and bounded status checks
+├── fonts/
+│   └── kindleclick-icons.ttf       # Three-state icon font (U+E900–U+E902)
+├── kindleclick_backend.lua         # Native asynchronous power and device verification
+├── kindleclick_bluetooth.lua       # btfd, device status, and native Click detection
+├── kindleclick_diagnostics.lua     # Read-only diagnostics triggered manually
+├── kindleclick_icons.lua           # Three-state icons and custom Unicode codepoints
+├── kindleclick_log.lua             # Wake-recovery log (kindleclick.log)
+├── main.lua                        # Menus, footer status, mappings, and recovery
 └── README.md
 ```
+
+Icon source files (SVG, PNG, the FontCreator project and the exported TTF) live in `assets/icon-src/` and are not part of the plugin package.

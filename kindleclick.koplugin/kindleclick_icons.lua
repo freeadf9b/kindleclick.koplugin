@@ -8,7 +8,23 @@ is read or changed; it never starts a timer or a background process.
 
 local _ = require("gettext")
 
+local DataStorage = require("datastorage")
+local logger = require("logger")
+
 local Icons = {}
+
+local FONT_FILE = "kindleclick-icons.ttf"
+-- Bump when the bundled font changes; the plugin overwrites the installed copy
+-- and asks for a restart, because the old glyphs stay cached otherwise.
+local FONT_VERSION = "1.7.4"
+Icons.FONT_VERSION = FONT_VERSION
+
+-- Glyphs shipped in fonts/kindleclick-icons.ttf (private-use area).
+Icons.CUSTOM = {
+    off = 0xE900,
+    on = 0xE901,
+    click = 0xE902,
+}
 
 Icons.STATES = {
     { id = "off", label = _("蓝牙关闭"), key = "kindleclick_icon_off", default = 0xE7B1 },
@@ -18,6 +34,9 @@ Icons.STATES = {
 
 -- Names and codepoints checked against the cmap of KOReader's symbols.ttf.
 Icons.PRESETS = {
+    { code = 0xE900, label = _("我的图标：蓝牙关闭") },
+    { code = 0xE901, label = _("我的图标：蓝牙开启") },
+    { code = 0xE902, label = _("我的图标：已连接") },
     { code = 0xE7B1, label = _("蓝牙关闭") },
     { code = 0xE7AE, label = _("蓝牙") },
     { code = 0xE7B0, label = _("蓝牙已连接") },
@@ -35,6 +54,83 @@ Icons.PRESETS = {
     { code = 0xEB24, label = _("电源") },
     { code = 0xF25A, label = _("旧版点击手势") },
 }
+
+function Icons.fontPath()
+    return DataStorage:getDataDir() .. "/fonts/" .. FONT_FILE
+end
+
+-- Copy the shipped icon font into KOReader's font directory and register it
+-- as an additional UI fallback font. Returns "registered" when nothing
+-- changed, or "needs_restart" when the font or the fallback list was just
+-- updated (KOReader reads both only at startup).
+function Icons.ensureFont(plugin_dir)
+    local changed = false
+    local target = Icons.fontPath()
+    local source = plugin_dir and (plugin_dir .. "/fonts/" .. FONT_FILE)
+    local installed = G_reader_settings:readSetting("kindleclick_icon_font_version")
+
+    if source and installed ~= FONT_VERSION then
+        local src = io.open(source, "rb")
+        if src then
+            local data = src:read("*a")
+            src:close()
+            local dir = target:match("^(.*)/[^/]+$")
+            if dir then os.execute(string.format('mkdir -p "%s"', dir)) end
+            local dst = io.open(target, "wb")
+            if dst then
+                dst:write(data)
+                dst:close()
+                G_reader_settings:saveSetting("kindleclick_icon_font_version", FONT_VERSION)
+                logger.info("KindleClick: icon font updated to " .. FONT_VERSION)
+                changed = true
+            end
+        else
+            logger.warn("KindleClick: icon font not found at " .. tostring(source))
+        end
+    end
+
+    local fallbacks = G_reader_settings:readSetting("font_ui_fallbacks", {})
+    if type(fallbacks) ~= "table" then fallbacks = {} end
+    local deduped = {}
+    local registered = false
+    local removed_stale = false
+    for _, item in ipairs(fallbacks) do
+        if item == target then
+            -- Already registered: never insert a second copy.
+            registered = true
+            table.insert(deduped, item)
+        elseif type(item) == "string" and item:sub(-#FONT_FILE) == FONT_FILE then
+            -- An older copy of this same font at another path: drop it.
+            removed_stale = true
+        else
+            table.insert(deduped, item)
+        end
+    end
+    if not registered then
+        table.insert(deduped, 1, target)
+        logger.info("KindleClick: icon font registered as UI fallback, restart needed")
+        changed = true
+    end
+    if removed_stale or not registered then
+        G_reader_settings:saveSetting("font_ui_fallbacks", deduped)
+    end
+
+    return changed and "needs_restart" or "registered"
+end
+
+function Icons.useCustom(plugin)
+    for _, state in ipairs(Icons.STATES) do
+        G_reader_settings:saveSetting(state.key, Icons.CUSTOM[state.id])
+    end
+    if plugin then plugin:_updateFooter() end
+end
+
+function Icons.isCustom(codepoint)
+    for _, code in pairs(Icons.CUSTOM) do
+        if code == codepoint then return true end
+    end
+    return false
+end
 
 function Icons.parseCodepoint(value)
     if type(value) == "number" then
@@ -145,7 +241,20 @@ local function showCustomCodepointDialog(plugin, state)
 end
 
 function Icons.getMenu(plugin)
-    local menu = {}
+    local menu = {
+        {
+            text = _("一键使用我的图标（关 / 开 / 已连接）"),
+            keep_menu_open = true,
+            separator = true,
+            callback = function()
+                Icons.useCustom(plugin)
+                if plugin then
+                    plugin:_showMessage(
+                        _("已切换为随插件附带的图标；若显示为空框，请重启 KOReader 让字体生效"), 6)
+                end
+            end,
+        },
+    }
     for state_index, state in ipairs(Icons.STATES) do
         table.insert(menu, {
             text_func = function()
