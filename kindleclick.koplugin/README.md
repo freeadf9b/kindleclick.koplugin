@@ -85,6 +85,14 @@
 
 花括号过滤表示只显示本插件，不会混入阅读计时器等其他插件的内容。使用不带过滤条件的 `%plugin_content` 则会聚合所有已注册插件。状态或图标改变时，本插件会发送 Bookends 已支持的 `RefreshAdditionalContent` 事件，无需另装补丁。如果当前 Bookends 不认识 `%plugin_content`，请先升级 Bookends。
 
+### 在 ZenOS 主屏显示
+
+安装 [ZenOS](https://github.com/xZenLabs/zen-os) 时，本插件会在主屏注册一个「Kindle Click」小组件，显示三种状态之一：蓝牙关闭、蓝牙已开启、翻页器已连接。组件默认关闭，到 **Zen Settings → Home → Widgets** 打开即可；可排在任意位置，高度沿用 ZenOS 的 `s` 档。
+
+插件只通过 ZenOS 的公开接口 `__ZENOS_REGISTER_HOME_ITEM` 注册，ZenOS 未安装或版本过旧时自动跳过，不影响其他功能。状态变化时组件会随主屏一起重绘。
+
+点击主屏上的小组件会打开一个快捷菜单：开关蓝牙、连接 Kindle Click、重建蓝牙传输层、检查更新、诊断信息。
+
 ### Click 五个按键功能
 
 | 操作 | 按键码 | 5.20.1 上的处理路径 |
@@ -247,6 +255,14 @@ Add the following to any Bookends line where the icon should appear:
 ```
 
 The brace filter selects only this plugin, excluding content from other plugins such as reading timers. The unfiltered `%plugin_content` token aggregates content from all registered plugins. When the status or icon changes, this plugin emits the `RefreshAdditionalContent` event already supported by Bookends; no additional patch is needed. If your Bookends version does not recognize `%plugin_content`, upgrade Bookends first.
+
+### Displaying the status in ZenOS
+
+When [ZenOS](https://github.com/xZenLabs/zen-os) is installed, this plugin registers a "Kindle Click" Home widget that shows one of three states: Bluetooth off, Bluetooth on, or page turner connected. The widget starts disabled; enable it under **Zen Settings → Home → Widgets** and place it anywhere on Home. It uses ZenOS's `s` height class.
+
+Registration only uses ZenOS's public `__ZENOS_REGISTER_HOME_ITEM` hook. When ZenOS is missing or too old the call is skipped, and nothing else in the plugin changes. The widget repaints with Home whenever the Bluetooth state changes.
+
+Tapping the widget opens a quick menu: toggle Bluetooth, connect the Kindle Click, rebuild the Bluetooth transport, check for updates, and diagnostics.
 
 ### Click button functions
 

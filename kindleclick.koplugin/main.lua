@@ -16,6 +16,7 @@ local Backend = require("kindleclick_backend")
 local Dispatcher = require("dispatcher")
 local Event = require("ui/event")
 local Icons = require("kindleclick_icons")
+local ZenOS = require("kindleclick_zenos")
 local InfoMessage = require("ui/widget/infomessage")
 local Log = require("kindleclick_log")
 local UIManager = require("ui/uimanager")
@@ -128,6 +129,7 @@ function KindleClick:init()
 
     self:_installInputSupport()
     self.ui.menu:registerToMainMenu(self)
+    ZenOS.attach(self)
     self:onDispatcherRegisterActions()
     self:_addFooterSymbol()
 
@@ -142,6 +144,12 @@ function KindleClick:init()
                 _("已安装随插件附带的图标字体，请重启 KOReader 后生效"), 8)
         end
     end)
+end
+
+-- ZenOS broadcasts this when it finishes loading after our plugin.
+function KindleClick:onZenOSReady()
+    ZenOS.attach(self)
+    return true
 end
 
 function KindleClick:onDispatcherRegisterActions()
@@ -272,6 +280,7 @@ function KindleClick:_refreshStatus(force, skip_wake_recovery)
             tostring(status.enabled), tostring(status.device_name),
             tostring(Bluetooth.getWirelessState()), tostring(gap)))
         self:_updateFooter()
+        ZenOS.refresh()
     end
     if Bluetooth.isKindleClick(status.device_name) then
         self:_cancelChecks()
@@ -711,6 +720,35 @@ function KindleClick:_rebuildTransport()
     end)
 end
 
+-- Compact menu used by the ZenOS home widget (tap on the status line).
+function KindleClick:_showQuickMenu()
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local dialog
+    local function close_and(fn)
+        return function()
+            UIManager:close(dialog)
+            fn()
+        end
+    end
+    local toggle_text = _("切换蓝牙")
+    if self.state and self.state.known then
+        toggle_text = self.state.enabled and _("关闭蓝牙") or _("开启蓝牙")
+    end
+    dialog = ButtonDialog:new{
+        title = _("Kindle Click"),
+        title_align = "center",
+        buttons = {
+            { { text = toggle_text, callback = close_and(function() self:onToggleBluetooth() end) } },
+            { { text = _("连接 Kindle Click"), callback = close_and(function() self:_connectClick(true) end) } },
+            { { text = _("重建蓝牙传输层（实验）…"), callback = close_and(function() self:_rebuildTransportPrompt() end) } },
+            { { text = string.format(_("检查更新（v%s）"), self.version or "?"), callback = close_and(function() self:_checkUpdates() end) } },
+            { { text = _("诊断信息"), callback = close_and(function() self:_showDiagnostics() end) } },
+            { { text = _("取消"), callback = function() UIManager:close(dialog) end } },
+        },
+    }
+    UIManager:show(dialog)
+end
+
 function KindleClick:addToMainMenu(menu_items)
     menu_items.kindleclick = {
         text_func = function()
@@ -898,6 +936,7 @@ function KindleClick:onCloseWidget()
     self._wake_recovery_running = false
     self:_cancelChecks()
     self:_removeFooterSymbol()
+    ZenOS.detach()
 end
 
 function KindleClick:deletePluginSettings()
