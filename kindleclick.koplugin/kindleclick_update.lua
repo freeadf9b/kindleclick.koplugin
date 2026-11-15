@@ -6,7 +6,6 @@
 -- replaced until every file has arrived, so an interrupted download leaves
 -- the installed version untouched.
 
-local UIManager = require("ui/uimanager")
 local Log = require("kindleclick_log")
 
 local Update = {}
@@ -27,65 +26,111 @@ Update.FILES = {
     "kindleclick_icons.lua",
     "kindleclick_log.lua",
     "kindleclick_update.lua",
+    "kindleclick_zenos.lua",
     "manifest.txt",
     "README.md",
     "fonts/kindleclick-icons.ttf",
+    "icons/kindleclick.svg",
 }
 
 local function plugin_base(url)
     return url .. "/kindleclick.koplugin/"
 end
 
-local function mirrors()
-    return {
-        plugin_base("https://cdn.jsdelivr.net/gh/" .. Update.REPO .. "@" .. Update.BRANCH),
-        plugin_base("https://raw.githubusercontent.com/" .. Update.REPO .. "/" .. Update.BRANCH),
-    }
+-- Tags are named "v<version>". Until a version is known we ask jsDelivr for
+-- "@latest", which resolves the newest release tag: the default branch of the
+-- repository is not guaranteed to be up to date.
+local function ref_for(version)
+    if version and tostring(version) ~= "" then
+        return "v" .. tostring(version)
+    end
+    return "latest"
 end
 
--- A single GET with a hard local timeout: the HTTP client is asynchronous, so
--- a dead connection would otherwise leave the UI waiting forever.
+local function mirrors(version)
+    -- Ordered by how reachable they usually are from mainland China. All of
+    -- these speak the jsDelivr "@ref" URL scheme, so "@latest" works until the
+    -- real version is known; the raw mirrors need an explicit ref and are only
+    -- added afterwards.
+    local ref = ref_for(version)
+    local prefix = "/gh/" .. Update.REPO .. "@" .. ref
+    local list = {
+        plugin_base("https://fastly.jsdelivr.net" .. prefix),
+        plugin_base("https://gcore.jsdelivr.net" .. prefix),
+        plugin_base("https://jsd.onmicrosoft.cn" .. prefix),
+        plugin_base("https://jsd.cdn.zzko.cn" .. prefix),
+        plugin_base("https://cdn.jsdelivr.net" .. prefix),
+    }
+    if version then
+        local raw = "https://raw.githubusercontent.com/" .. Update.REPO .. "/" .. ref
+        list[#list + 1] = "https://ghfast.top/" .. raw .. "/kindleclick.koplugin/"
+        list[#list + 1] = "https://gh-proxy.com/" .. raw .. "/kindleclick.koplugin/"
+        list[#list + 1] = "https://raw.gitmirror.com/" .. Update.REPO .. "/" .. ref .. "/kindleclick.koplugin/"
+        list[#list + 1] = plugin_base(raw)
+    end
+    return list
+end
+
+-- Blocking GET through LuaSocket. The Turbo-based HTTPClient threw an
+-- exception on some Kindle builds (the updater only logged "request_failed"),
+-- and a plain socket request works everywhere KOReader runs. The caller shows
+-- a "checking" toast first, so a short freeze here is acceptable.
 local function fetch(url, callback)
-    local ok, HTTPClient = pcall(require, "httpclient")
-    if not ok then
-        callback(false, nil, "no_httpclient")
+    local ok_ltn12, ltn12 = pcall(require, "ltn12")
+    if not ok_ltn12 then
+        callback(false, nil, "no_ltn12")
         return
     end
-    local done = false
-    local timer
-    local function finish(ok_done, body, err)
-        if done then return end
-        done = true
-        if timer then UIManager:unschedule(timer) end
-        callback(ok_done, body, err)
+    local ok_http, http = pcall(require, "socket.http")
+    local ok_ssl, https = pcall(require, "ssl.https")
+    if not ok_http and not ok_ssl then
+        callback(false, nil, "no_luasocket")
+        return
     end
-    timer = function() finish(false, nil, "timeout") end
-    UIManager:scheduleIn(30, timer)
-    local sent = pcall(function()
-        HTTPClient:new():request({
-            url = url,
-            method = "GET",
-            headers = { ["User-Agent"] = "kindleclick-koplugin" },
-        }, function(res)
-            if type(res) == "table" and res.code == 200 and type(res.body) == "string" then
-                finish(true, res.body)
-            else
-                finish(false, nil, type(res) == "table" and tostring(res.code) or "no_response")
-            end
-        end)
-    end)
-    if not sent then finish(false, nil, "request_failed") end
+    http.TIMEOUT = 30
+    if ok_ssl then https.TIMEOUT = 30 end
+    local sink = {}
+    local request = {
+        url = url,
+        method = "GET",
+        sink = ltn12.sink.table(sink),
+        headers = { ["User-Agent"] = "kindleclick-koplugin" },
+    }
+    local ok, first, second
+    if ok_ssl and url:match("^https://") then
+        ok, first, second = pcall(https.request, request)
+    else
+        ok, first, second = pcall(http.request, request)
+    end
+    if not ok then
+        callback(false, nil, "request_failed: " .. tostring(first))
+        return
+    end
+    -- LuaSocket returns (1, status_code, headers, status_line) on success and
+    -- (nil, error_message) on a transport failure. The status code is the
+    -- second value, not the first.
+    if first ~= 1 then
+        callback(false, nil, "request_failed: " .. tostring(second or first))
+        return
+    end
+    local status = tonumber(second)
+    if status == 200 then
+        callback(true, table.concat(sink))
+    else
+        callback(false, nil, "http_" .. tostring(status))
+    end
 end
 
 -- jsDelivr caches files for up to 12 hours, which would hide a fresh push.
 -- Appending a cache key makes every fetch a distinct URL, so the CDN asks
 -- GitHub instead of serving its cached copy.
-local function fetch_first(path, callback, cache_bust)
-    local urls = mirrors()
+local function fetch_first(path, callback, cache_bust, version)
+    local urls = mirrors(version)
     local index = 1
+    local last_err
     local function next_mirror()
         if index > #urls then
-            callback(false, nil, "unreachable")
+            callback(false, nil, last_err or "unreachable")
             return
         end
         local url = urls[index] .. path
@@ -97,6 +142,8 @@ local function fetch_first(path, callback, cache_bust)
             if ok then
                 callback(true, body)
             else
+                last_err = err or "unknown"
+                Log.write("update", "mirror failed: " .. url .. " -> " .. tostring(last_err))
                 next_mirror()
             end
         end)
@@ -124,9 +171,9 @@ function Update.isNewer(remote, local_version)
 end
 
 function Update.check(local_version, callback)
-    fetch_first(Update.VERSION_FILE, function(ok, body)
+    fetch_first(Update.VERSION_FILE, function(ok, body, err)
         if not ok then
-            callback(false, nil, body)
+            callback(false, nil, err)
             return
         end
         local remote = body:match('version%s*=%s*"([%d%.]+)"')
@@ -134,6 +181,7 @@ function Update.check(local_version, callback)
             callback(false, nil, "bad_meta")
             return
         end
+        Log.write("update", "remote version: " .. tostring(remote) .. " (local " .. tostring(local_version) .. ")")
         callback(true, remote, nil)
     end, os.time())
 end
@@ -149,7 +197,7 @@ local function parse_manifest(body)
     return files
 end
 
-local function list_files(callback, cache_bust)
+local function list_files(callback, cache_bust, version)
     fetch_first(Update.MANIFEST_FILE, function(ok, body)
         if ok then
             local files = parse_manifest(body)
@@ -159,7 +207,7 @@ local function list_files(callback, cache_bust)
             end
         end
         callback(Update.FILES)
-    end, cache_bust)
+    end, cache_bust, version)
 end
 
 -- A missing optional file (documentation, manifest) must not abort a release
@@ -233,10 +281,10 @@ function Update.install(plugin_dir, callback, version)
                 end
                 pending[#pending + 1] = name
                 next_file()
-            end, cache_bust)
+            end, cache_bust, version)
         end
         next_file()
-    end, cache_bust)
+    end, cache_bust, version)
 end
 
 return Update

@@ -87,11 +87,15 @@
 
 ### 在 ZenOS 主屏显示
 
-安装 [ZenOS](https://github.com/xZenLabs/zen-os) 时，本插件会在主屏注册一个「Kindle Click」小组件，显示三种状态之一：蓝牙关闭、蓝牙已开启、翻页器已连接。组件默认关闭，到 **Zen Settings → Home → Widgets** 打开即可；可排在任意位置，高度沿用 ZenOS 的 `s` 档。
+安装 [ZenOS](https://github.com/xZenLabs/zen-os) 时，本插件会在主屏注册一个「Kindle Click」小组件，显示三种状态之一：蓝牙关闭、翻页器断开、翻页器连通。组件默认关闭，到 **Zen Settings → Home → Widgets** 打开即可；可排在任意位置，高度沿用 ZenOS 的 `s` 档。
 
 插件只通过 ZenOS 的公开接口 `__ZENOS_REGISTER_HOME_ITEM` 注册，ZenOS 未安装或版本过旧时自动跳过，不影响其他功能。状态变化时组件会随主屏一起重绘。
 
 点击主屏上的小组件会打开一个快捷菜单：开关蓝牙、连接 Kindle Click、重建蓝牙传输层、检查更新、诊断信息。
+
+如果想把 Controls 面板里的 KindleClick 按钮换成胶囊图标：本插件启动时会把 `kindleclick.svg` 复制到 KOReader 的 `icons/` 目录，到 **Zen Settings → Interface → Controls → Buttons** 编辑该按钮，在图标选择器里选 `kindleclick` 即可。
+
+注意：ZenOS 的「已激活黑底」只作用于它内置的按钮（Wi-Fi、蓝牙等），自定义按钮不会因为 Kindle Click 连上而变黑底；Controls 按钮的文字也只是 ZenOS 配置里的静态标签，无法随连接状态变化。状态区分请以主屏小组件上的「翻页器连通 / 翻页器断开」为准。
 
 ### Click 五个按键功能
 
@@ -258,11 +262,15 @@ The brace filter selects only this plugin, excluding content from other plugins 
 
 ### Displaying the status in ZenOS
 
-When [ZenOS](https://github.com/xZenLabs/zen-os) is installed, this plugin registers a "Kindle Click" Home widget that shows one of three states: Bluetooth off, Bluetooth on, or page turner connected. The widget starts disabled; enable it under **Zen Settings → Home → Widgets** and place it anywhere on Home. It uses ZenOS's `s` height class.
+When [ZenOS](https://github.com/xZenLabs/zen-os) is installed, this plugin registers a "Kindle Click" Home widget that shows one of three states: Bluetooth off, page turner disconnected, or page turner connected. The widget starts disabled; enable it under **Zen Settings → Home → Widgets** and place it anywhere on Home. It uses ZenOS's `s` height class.
 
 Registration only uses ZenOS's public `__ZENOS_REGISTER_HOME_ITEM` hook. When ZenOS is missing or too old the call is skipped, and nothing else in the plugin changes. The widget repaints with Home whenever the Bluetooth state changes.
 
 Tapping the widget opens a quick menu: toggle Bluetooth, connect the Kindle Click, rebuild the Bluetooth transport, check for updates, and diagnostics.
+
+To replace the KindleClick button icon in the Controls panel with the capsule: the plugin copies `kindleclick.svg` into KOReader's `icons/` directory on startup. Edit the button under **Zen Settings → Interface → Controls → Buttons** and pick `kindleclick` in the icon picker.
+
+Note: ZenOS's active-state dark background only applies to its built-in buttons (Wi-Fi, Bluetooth, etc.). Custom buttons never turn dark when the Kindle Click connects, and the Controls button label is a static ZenOS configuration value, so it cannot follow the connection state either. Use the Home widget's "page turner connected / disconnected" text for that.
 
 ### Click button functions
 

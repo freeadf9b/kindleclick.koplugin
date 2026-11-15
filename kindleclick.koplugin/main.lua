@@ -281,6 +281,10 @@ function KindleClick:_refreshStatus(force, skip_wake_recovery)
             tostring(Bluetooth.getWirelessState()), tostring(gap)))
         self:_updateFooter()
         ZenOS.refresh()
+        if self._connect_notice_pending and Bluetooth.isKindleClick(status.device_name) then
+            self._connect_notice_pending = false
+            self:_showMessage(_("Kindle Click 已连接"), 3)
+        end
     end
     if Bluetooth.isKindleClick(status.device_name) then
         self:_cancelChecks()
@@ -493,8 +497,10 @@ function KindleClick:_checkUpdates()
 
     local Update = require("kindleclick_update")
     self._checking_updates = true
-    self:_showMessage(_("正在检查更新…"), 3)
-    Update.check(self.version, function(ok, remote, err)
+    self:_showMessage(_("正在检查更新…"), 30)
+    -- The HTTP fetches are blocking (LuaSocket), so let the message paint first.
+    UIManager:nextTick(function()
+        Update.check(self.version, function(ok, remote, err)
         self._checking_updates = false
         if self._closed then return end
         if not ok then
@@ -518,6 +524,7 @@ function KindleClick:_checkUpdates()
             ok_callback = function() self:_installUpdate(remote) end,
         })
     end)
+    end)
 end
 
 function KindleClick:_installUpdate(remote)
@@ -525,6 +532,7 @@ function KindleClick:_installUpdate(remote)
     local Update = require("kindleclick_update")
     self._installing_update = true
     self:_showMessage(_("正在下载更新，请保持网络连接…"), 60)
+    UIManager:nextTick(function()
     Update.install(plugin_dir, function(ok, failed)
         self._installing_update = false
         if self._closed then return end
@@ -542,6 +550,7 @@ function KindleClick:_installUpdate(remote)
             ok_callback = function() UIManager:quit(85) end,
         })
     end, remote)
+    end)
 end
 
 
@@ -615,6 +624,7 @@ function KindleClick:_connectClick(manual)
         return false
     end
 
+    self._connect_notice_pending = true
     Backend.connect(device, function(ok, err)
         if self._closed then return end
         self:_refreshStatus(true)
@@ -633,13 +643,17 @@ function KindleClick:_connectClick(manual)
                     self:_refreshStatus(true)
                     if manual and not ok2
                         and not Bluetooth.isKindleClick(self.state.device_name) then
+                        self._connect_notice_pending = false
                         self:_showMessage(err2 or _("连接 Kindle Click 失败"), 4)
                     end
                 end)
             end)
             return
         end
-        if manual and err then self:_showMessage(err, 4) end
+        if manual and err then
+            self._connect_notice_pending = false
+            self:_showMessage(err, 4)
+        end
     end)
     self:_scheduleConnectionChecks()
     if manual then self:_showMessage(_("正在连接 Kindle Click…若较久未连上，请按一下 Click"), 3) end
@@ -735,7 +749,7 @@ function KindleClick:_showQuickMenu()
         toggle_text = self.state.enabled and _("关闭蓝牙") or _("开启蓝牙")
     end
     dialog = ButtonDialog:new{
-        title = _("Kindle Click"),
+        title = _("Kindle Click") .. " · " .. ZenOS.statusLabel(self),
         title_align = "center",
         buttons = {
             { { text = toggle_text, callback = close_and(function() self:onToggleBluetooth() end) } },

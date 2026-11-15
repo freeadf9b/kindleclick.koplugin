@@ -1,0 +1,10 @@
+<svg width="42" height="106" viewBox="0 0 42 106" xmlns="http://www.w3.org/2000/svg">
+  <!-- 黑色胶囊主体：更瘦长 -->
+  <rect x="4" y="4" width="34" height="98" rx="17" ry="17" fill="#000000"/>
+
+  <!-- 上白圆与顶部黑色圆弧同心 -->
+  <circle cx="21" cy="21" r="8.5" fill="#ffffff"/>
+
+  <!-- 下白圆继续保持在上半部分 -->
+  <circle cx="21" cy="43" r="8.5" fill="#ffffff"/>
+</svg>

@@ -10,3 +10,4 @@ kindleclick_zenos.lua
 manifest.txt
 README.md
 fonts/kindleclick-icons.ttf
+icons/kindleclick.svg

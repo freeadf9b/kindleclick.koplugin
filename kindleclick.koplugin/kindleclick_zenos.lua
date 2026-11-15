@@ -17,6 +17,14 @@ local ZenOS = {}
 
 ZenOS.ID = "kindleclick.status"
 
+local function status_label(plugin)
+    local state = plugin and plugin.state
+    if not state or not state.known then return _("状态未知") end
+    if not state.enabled then return _("蓝牙关闭") end
+    if Bluetooth.isKindleClick(state.device_name) then return _("翻页器连通") end
+    return _("翻页器断开")
+end
+
 local function home_state_text(plugin)
     local state = plugin and plugin.state
     if not state or not state.known then
@@ -26,9 +34,13 @@ local function home_state_text(plugin)
         return Icons.getGlyph("off") .. " " .. _("蓝牙关闭")
     end
     if Bluetooth.isKindleClick(state.device_name) then
-        return Icons.getGlyph("click") .. " " .. _("翻页器已连接")
+        return Icons.getGlyph("click") .. " " .. _("翻页器连通")
     end
-    return Icons.getGlyph("on") .. " " .. _("蓝牙已开启")
+    return Icons.getGlyph("on") .. " " .. _("翻页器断开")
+end
+
+function ZenOS.statusLabel(plugin)
+    return status_label(plugin)
 end
 
 function ZenOS.statusText(plugin)
@@ -71,6 +83,52 @@ local function register_fn()
     return rawget(_G, "__ZENOS_REGISTER_HOME_ITEM")
 end
 
+-- ZenOS resolves custom button icons from <koreader>/icons by file name. Copy
+-- our capsule there so the icon picker lists it without the user having to
+-- convert anything.
+local ICON_FILES = { "kindleclick.svg" }
+
+local function ensure_icons(plugin_dir)
+    if ZenOS._icons_ready or not plugin_dir then return end
+    local ok_storage, DataStorage = pcall(require, "datastorage")
+    if not ok_storage or not DataStorage then return end
+    local dir = DataStorage:getDataDir() .. "/icons"
+    pcall(function()
+        require("libs/libkoreader-lfs").mkdir(dir)
+    end)
+    for _i, name in ipairs(ICON_FILES) do
+        local src = plugin_dir .. "/icons/" .. name
+        local dst = dir .. "/" .. name
+        local input = io.open(src, "rb")
+        if input then
+            local body = input:read("*a")
+            input:close()
+            local existing = io.open(dst, "rb")
+            local same = false
+            if existing then
+                local current = existing:read("*a")
+                existing:close()
+                same = current == body
+            end
+            if not same then
+                local output = io.open(dst, "wb")
+                if output then
+                    output:write(body)
+                    output:close()
+                end
+            end
+        end
+    end
+    ZenOS._icons_ready = true
+    require("kindleclick_log").write("zenos", "control icons copied to " .. dir)
+end
+
+function ZenOS.icons_dir()
+    local ok_storage, DataStorage = pcall(require, "datastorage")
+    if not ok_storage or not DataStorage then return nil end
+    return DataStorage:getDataDir() .. "/icons"
+end
+
 local function unregister_fn()
     local fn = rawget(_G, "__ZENOS_UNREGISTER_HOME_ITEM")
     if type(fn) ~= "function" then
@@ -81,6 +139,7 @@ end
 
 function ZenOS.attach(plugin)
     ZenOS._plugin = plugin
+    ensure_icons(plugin and plugin.path)
     local register = register_fn()
     if type(register) ~= "function" then
         -- ZenOS may load after us; main.lua forwards its ZenOSReady event here.
