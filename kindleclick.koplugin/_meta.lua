@@ -1,7 +1,7 @@
 local _ = require("gettext")
 return {
     fullname = _("Kindle Click 蓝牙"),
-    description = _("在 Kindle 上控制蓝牙、自动连接 Kindle Click，并在阅读状态栏显示连接状态。"),
+    description = _("在 Kindle 上控制蓝牙、自动连接 Kindle Click、系统蓝牙假死时一键救回，并在阅读状态栏、Bookends 或 ZenOS 显示连接状态。"),
     author = "GitHub/freeadf9b",
-    version = "1.7.18",
+    version = "1.7.19",
 }
