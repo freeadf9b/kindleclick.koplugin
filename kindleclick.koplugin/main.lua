@@ -878,6 +878,7 @@ function KindleClick:onEvdevInputRemove()
     self:_scheduleCheck(0.75)
 end
 
+
 function KindleClick:onSuspend()
     self._sleeping = true
     self:_cancelChecks()

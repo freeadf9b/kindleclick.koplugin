@@ -120,7 +120,7 @@
 
 ### 低功耗设计
 
-- 没有常驻轮询，没有后台守护进程，也不会阻止 Kindle 休眠。
+- 没有常驻后台服务，也不会阻止 Kindle 休眠。
 - 状态只在启动、唤醒、菜单访问、状态栏本来就要刷新、设备热插拔或手动操作时读取。
 - 菜单标题和状态栏触发的状态读取至少有 30 秒间隔，且仅在已有界面活动时执行；展开子菜单会立即刷新一次。
 - 发起连接后会立即确认一次，随后仅在第 2、5、10、20 秒各确认一次；连接成功或确认结束后不再保留定时器。
@@ -295,7 +295,7 @@ The brightness buttons support native press-and-hold repetition. Sleep can only 
 
 ### Low-power design
 
-- No persistent polling, no background daemon, and no interference with Kindle sleep.
+- No persistent background service, and no interference with Kindle sleep.
 - Status is read only at startup, resume, menu access, an already-occurring footer redraw, input-device hotplug, or a manual action.
 - Menu-title and footer-triggered status reads are at least 30 seconds apart and run only when there is already UI activity; expanding the submenu refreshes immediately.
 - After initiating a connection, status is confirmed once immediately and then only at 2, 5, 10, and 20 seconds. No timer remains after the connection succeeds or the final check finishes.
