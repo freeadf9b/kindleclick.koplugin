@@ -29,7 +29,7 @@ Update.FILES = {
     "kindleclick_zenos.lua",
     "manifest.txt",
     "README.md",
-    "fonts/kindleclick-icons.ttf",
+    "fonts/kindleclick-icons.kfont",
     "icons/kindleclick.svg",
 }
 

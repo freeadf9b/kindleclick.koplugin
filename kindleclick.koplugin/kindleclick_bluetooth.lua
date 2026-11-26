@@ -218,12 +218,6 @@ end
 -- airplane mode on, so this value is read for diagnostics only.
 local CMD_SERVICE = "com.lab126.cmd"
 
--- Read-only helper used in the status log: correlating airplane-mode changes
--- with the native Bluetooth recovery is how the recovery trigger is identified.
-function Bluetooth.getWirelessState()
-    return readProperty("wirelessEnable", true, CMD_SERVICE)
-end
-
 -- wirelessEnable (com.lab126.cmd) is read in getDiagnosticProperties only: the
 -- user may deliberately keep airplane mode on with Bluetooth on, so the plugin
 -- must never write it.

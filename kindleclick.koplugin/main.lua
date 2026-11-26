@@ -117,9 +117,6 @@ function KindleClick:init()
     self.auto_connect = G_reader_settings:nilOrTrue("kindleclick_auto_connect")
     self.version = read_plugin_version()
     local icon_font_state = Icons.ensureFont(plugin_dir)
-    Log.write("icons", string.format("off=U+%04X on=U+%04X click=U+%04X, %s",
-        Icons.getCodepoint("off"), Icons.getCodepoint("on"), Icons.getCodepoint("click"),
-        Icons.describeRuntimeFallback()))
 
     self._status_content_func = function()
         -- Activity-driven refresh: no timer runs while the reader is idle.
@@ -215,6 +212,7 @@ end
 -- footer's own face. This distinguishes a missing glyph from a shadowing
 -- fallback without needing to guess from a screenshot.
 function KindleClick:_logIconFace()
+    if self._icon_face_logged then return end
     pcall(function()
         local footer = self.ui.view and self.ui.view.footer
         if not footer or not footer.settings then return end
@@ -226,6 +224,7 @@ function KindleClick:_logIconFace()
         local target = Icons.CUSTOM.click
         local parts = {
             string.format("footer_face=%s@%s", tostring(face.realname), tostring(face.orig_size)),
+            Icons.describeRuntimeFallback(),
         }
         local base_has = face.ftsize and face.ftsize:hasGlyph(target)
         parts[#parts + 1] = "base_glyph=" .. (base_has and "yes" or "no")
@@ -239,6 +238,7 @@ function KindleClick:_logIconFace()
                 if has then break end
             end
         end
+        self._icon_face_logged = true
         Log.write("icons", table.concat(parts, " | "))
     end)
 end
@@ -276,9 +276,17 @@ function KindleClick:_refreshStatus(force, skip_wake_recovery)
     self._last_refresh = os.time()
 
     if changed then
-        Log.write("status", string.format("enabled=%s device=%s wireless=%s gap=%ss",
-            tostring(status.enabled), tostring(status.device_name),
-            tostring(Bluetooth.getWirelessState()), tostring(gap)))
+        -- Log transitions only. A wake can flip between "unknown" and a real
+        -- state several times in a few seconds, and repeating the same line
+        -- makes the log hard to read. Wireless state remains in diagnostics.
+        local key = string.format("%s|%s|%s", tostring(status.known),
+            tostring(status.enabled), tostring(status.device_name))
+        if key ~= self._last_status_key or gap >= 5 then
+            self._last_status_key = key
+            Log.write("status", string.format("enabled=%s device=%s known=%s gap=%ss",
+                tostring(status.enabled), tostring(status.device_name),
+                tostring(status.known), tostring(gap)))
+        end
         self:_updateFooter()
         ZenOS.refresh()
         if self._connect_notice_pending and Bluetooth.isKindleClick(status.device_name) then
@@ -469,11 +477,12 @@ function KindleClick:_scheduleCheck(delay)
     UIManager:scheduleIn(delay, callback)
 end
 
--- A short, bounded connection window. Once Click is connected (or after the
--- last check), no timer remains active.
+-- A bounded connection window: most Click reconnects finish within a few
+-- seconds, but the native stack can take much longer after a wake, so keep
+-- checking for 40 seconds before reporting a failure.
 function KindleClick:_scheduleConnectionChecks()
     self:_cancelChecks()
-    for _, delay in ipairs({ 2, 5, 10, 20 }) do
+    for _, delay in ipairs({ 2, 5, 10, 20, 30, 40 }) do
         self:_scheduleCheck(delay)
     end
 end
@@ -749,8 +758,6 @@ function KindleClick:_showQuickMenu()
         toggle_text = self.state.enabled and _("关闭蓝牙") or _("开启蓝牙")
     end
     dialog = ButtonDialog:new{
-        title = _("Kindle Click") .. " · " .. ZenOS.statusLabel(self),
-        title_align = "center",
         buttons = {
             { { text = toggle_text, callback = close_and(function() self:onToggleBluetooth() end) } },
             { { text = _("连接 Kindle Click"), callback = close_and(function() self:_connectClick(true) end) } },

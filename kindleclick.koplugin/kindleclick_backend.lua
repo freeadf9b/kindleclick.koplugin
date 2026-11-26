@@ -179,8 +179,10 @@ end
 -- The HID node in /proc is the evidence the UI itself relies on, so it counts
 -- as proof of a connection; btfd's hash lists are unavailable on some builds
 -- and would otherwise make every successful connect look like a failure.
--- Verification runs on a bounded, low-frequency schedule (no 1 Hz polling).
-local CONNECT_CHECK_DELAYS = { 2, 5, 10, 20 }
+-- Verification runs on a bounded, low-frequency schedule (no 1 Hz polling);
+-- the window is 40 seconds because a reconnect after a deep sleep can take far
+-- longer than the first check suggested.
+local CONNECT_CHECK_DELAYS = { 2, 5, 10, 20, 30, 40 }
 
 local function verifyClickConnected(address, done)
     local index = 0

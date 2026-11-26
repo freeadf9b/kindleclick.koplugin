@@ -1,6 +1,6 @@
-# Kindle Click for KOReader
+# Bluetooth and Kindle Click controller for KOReader
 
-A KOReader plugin for **Kindle** that controls the built-in Bluetooth radio, connects the official **Kindle Click** page turner, rescues a frozen native Bluetooth stack, and shows its state in KOReader's footer, Bookends, or a ZenOS Home widget.
+A KOReader plugin for **Kindle** that controls the built-in Bluetooth and the official **Kindle Click** page-turner remote: pair it once in Kindle's native settings, then connect and reconnect after wake, rescue a frozen native Bluetooth stack, and view its state in KOReader's footer, Bookends, or a ZenOS Home widget.
 
 [English](#english) | [中文](#中文)
 
@@ -87,7 +87,7 @@ MIT
 
 ## 中文
 
-一个只面向 **Kindle** 的 KOReader 插件：控制原生蓝牙、连接官方 **Kindle Click** 翻页器、在系统蓝牙假死时一键救回，并在 KOReader 状态栏、Bookends 或 ZenOS 主屏显示当前状态。
+一个只面向 **Kindle** 的 KOReader 插件：控制原生蓝牙、连接官方 **Kindle Click** 翻页器（包括伪装成官方 Kindle Click 的其他翻页器）、在系统蓝牙假死时一键救回，并在 KOReader 状态栏、Bookends 或 ZenOS 主屏显示当前状态。
 
 ### 功能
 
