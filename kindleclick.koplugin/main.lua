@@ -21,7 +21,7 @@ local InfoMessage = require("ui/widget/infomessage")
 local Log = require("kindleclick_log")
 local UIManager = require("ui/uimanager")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
-local _ = require("gettext")
+local _ = require("kindleclick_gettext")
 
 local IDLE_REFRESH_INTERVAL = 30 -- only while the menu/footer is already being drawn
 local SLEEP_GAP_SECONDS = 600 -- a longer gap means the device was suspended
@@ -38,7 +38,7 @@ local PASSIVE_WATCH_GAPS = { 60, 120, 180, 240, 300, 300, 300, 300 }
 local KEY_PAGEUP = 104
 local KEY_PAGEDOWN = 109
 
--- Directory this plugin was loaded from, used to find fonts/kindleclick-icons.ttf.
+-- Directory this plugin was loaded from, used to find fonts/kindleclick-icons.kfont.
 local plugin_dir = debug.getinfo(1, "S").source:match("^@(.*)/[^/]*$")
 
 -- Version is read from _meta.lua so the menu label and the plugin metadata
@@ -138,7 +138,7 @@ function KindleClick:init()
         end
         if icon_font_state == "needs_restart" then
             self:_showMessage(
-                _("已安装随插件附带的图标字体，请重启 KOReader 后生效"), 8)
+                _("The bundled icon font is installed. Restart KOReader to use it."), 8)
         end
     end)
 end
@@ -153,13 +153,13 @@ function KindleClick:onDispatcherRegisterActions()
     Dispatcher:registerAction("kindleclick_toggle_bluetooth", {
         category = "none",
         event = "KindleClickToggleBluetooth",
-        title = _("Kindle Click：开/关蓝牙"),
+        title = _("Kindle Click: Toggle Bluetooth"),
         device = true,
     })
     Dispatcher:registerAction("kindleclick_connect", {
         category = "none",
         event = "KindleClickConnect",
-        title = _("Kindle Click：连接"),
+        title = _("Kindle Click: Connect"),
         device = true,
     })
 end
@@ -291,7 +291,7 @@ function KindleClick:_refreshStatus(force, skip_wake_recovery)
         ZenOS.refresh()
         if self._connect_notice_pending and Bluetooth.isKindleClick(status.device_name) then
             self._connect_notice_pending = false
-            self:_showMessage(_("Kindle Click 已连接"), 3)
+            self:_showMessage(_("Kindle Click connected"), 3)
         end
     end
     if Bluetooth.isKindleClick(status.device_name) then
@@ -388,11 +388,11 @@ function KindleClick:_noteWakeRecoveryResult(ok)
         self:_startPassiveWatch("wake failed")
         local ConfirmBox = require("ui/widget/confirmbox")
         UIManager:show(ConfirmBox:new{
-            text = _("蓝牙传输层似乎已断开（WMT 引用计数为 0），继续等待可能也开不了。\n"
-                .. "重建会停止并重启蓝牙相关服务，约 40–60 秒；Wi-Fi 可能短暂中断。\n"
-                .. "是否现在重建？"),
-            ok_text = _("重建"),
-            cancel_text = _("稍后"),
+            text = _("The Bluetooth transport appears disconnected (WMT reference count is 0); waiting may not help.\n"
+                .. "Rebuilding stops and restarts Bluetooth services and takes about 40–60 seconds. Wi-Fi may briefly disconnect.\n"
+                .. "Rebuild it now?"),
+            ok_text = _("Rebuild"),
+            cancel_text = _("Later"),
             ok_callback = function()
                 if not self._closed then self:_rebuildTransport() end
             end,
@@ -400,7 +400,7 @@ function KindleClick:_noteWakeRecoveryResult(ok)
         return
     end
     self:_showMessage(
-        _("系统蓝牙仍在启动。插件不再自动重试，会继续只读观察，也可以稍后手动切换。"), 6)
+        _("Bluetooth is still starting. The plugin will not retry automatically; it will keep watching and you can toggle it later."), 6)
     self:_startPassiveWatch("wake failed")
 end
 
@@ -495,18 +495,18 @@ end
 
 function KindleClick:_checkUpdates()
     if self._checking_updates then
-        self:_showMessage(_("正在检查更新，请稍候"), 3)
+        self:_showMessage(_("Checking for updates..."), 3)
         return
     end
     local NetworkMgr = require("ui/network/manager")
     if not NetworkMgr:isOnline() then
-        self:_showMessage(_("当前没有网络连接，请先连接 Wi-Fi 后再检查更新"), 5)
+        self:_showMessage(_("There is no network connection. Connect to Wi-Fi before checking for updates."), 5)
         return
     end
 
     local Update = require("kindleclick_update")
     self._checking_updates = true
-    self:_showMessage(_("正在检查更新…"), 30)
+    self:_showMessage(_("Checking for updates..."), 30)
     -- The HTTP fetches are blocking (LuaSocket), so let the message paint first.
     UIManager:nextTick(function()
         Update.check(self.version, function(ok, remote, err)
@@ -514,22 +514,22 @@ function KindleClick:_checkUpdates()
         if self._closed then return end
         if not ok then
             Log.write("update", "check failed: " .. tostring(err))
-            self:_showMessage(_("检查更新失败：") .. tostring(err), 5)
+            self:_showMessage(_("Update check failed: ") .. tostring(err), 5)
             return
         end
         Log.write("update", string.format("check: local=%s remote=%s",
             tostring(self.version), tostring(remote)))
         if not Update.isNewer(remote, self.version) then
-            self:_showMessage(_("已是最新版本（v") .. tostring(self.version) .. "）", 4)
+            self:_showMessage(_("Already up to date (v") .. tostring(self.version) .. ")", 4)
             return
         end
         local ConfirmBox = require("ui/widget/confirmbox")
         UIManager:show(ConfirmBox:new{
             text = string.format(
-                _("发现新版本 v%s（当前 v%s）。\n现在下载并更新吗？更新后需要重启 KOReader。"),
+                _("Version v%s is available (current version: v%s).\nDownload and install it now? Restart KOReader after the update."),
                 tostring(remote), tostring(self.version)),
-            ok_text = _("更新"),
-            cancel_text = _("稍后"),
+            ok_text = _("Update"),
+            cancel_text = _("Later"),
             ok_callback = function() self:_installUpdate(remote) end,
         })
     end)
@@ -540,22 +540,22 @@ function KindleClick:_installUpdate(remote)
     if self._installing_update then return end
     local Update = require("kindleclick_update")
     self._installing_update = true
-    self:_showMessage(_("正在下载更新，请保持网络连接…"), 60)
+    self:_showMessage(_("Downloading the update. Keep the network connected..."), 60)
     UIManager:nextTick(function()
     Update.install(plugin_dir, function(ok, failed)
         self._installing_update = false
         if self._closed then return end
         if not ok then
             Log.write("update", "install failed at " .. tostring(failed))
-            self:_showMessage(_("更新失败（") .. tostring(failed or "") .. _("），请检查网络后重试"), 6)
+            self:_showMessage(_("Update failed (") .. tostring(failed or "") .. _("). Check the network and try again."), 6)
             return
         end
         Log.write("update", "installed v" .. tostring(remote))
         local ConfirmBox = require("ui/widget/confirmbox")
         UIManager:show(ConfirmBox:new{
-            text = string.format(_("已更新到 v%s。\n重启 KOReader 后生效。"), tostring(remote)),
-            ok_text = _("立即重启"),
-            cancel_text = _("稍后"),
+            text = string.format(_("Updated to v%s.\nRestart KOReader to apply the update."), tostring(remote)),
+            ok_text = _("Restart now"),
+            cancel_text = _("Later"),
             ok_callback = function() UIManager:quit(85) end,
         })
     end, remote)
@@ -563,17 +563,18 @@ function KindleClick:_installUpdate(remote)
 end
 
 
-function KindleClick:_setEnabled(enabled, quiet)
+function KindleClick:_setEnabled(enabled, quiet, on_complete)
     self:_cancelChecks()
     self._power_request = (self._power_request or 0) + 1
     local request = self._power_request
     if not quiet then
-        self:_showMessage(enabled and _("正在打开蓝牙…") or _("正在关闭蓝牙…"), 2)
+        self:_showMessage(enabled and _("Turning Bluetooth on...") or _("Turning Bluetooth off..."), 2)
     end
 
     Backend.setEnabled(enabled, function(ok, err)
         if self._closed or request ~= self._power_request then return end
         self:_refreshStatus(true)
+        if on_complete then on_complete() end
         if ok and enabled then
             local device = Backend.findPairedKindleClick()
             if device then
@@ -592,11 +593,11 @@ function KindleClick:_setEnabled(enabled, quiet)
         if not quiet then
             local message
             if not ok then
-                message = enabled and _("蓝牙开启失败") or _("蓝牙关闭失败")
+                message = enabled and _("Failed to turn Bluetooth on") or _("Failed to turn Bluetooth off")
                 if err then message = message .. "\n" .. err end
             else
-                message = enabled and _("蓝牙已开启，正在连接 Kindle Click")
-                                    or  _("蓝牙已关闭")
+                message = enabled and _("Bluetooth is on. Connecting to Kindle Click...")
+                                    or  _("Bluetooth is off")
             end
             self:_showMessage(message, ok and 3 or 5)
         end
@@ -608,7 +609,7 @@ function KindleClick:_connectClick(manual)
     if manual then self:_cancelUserOverrides() end
     self:_refreshStatus(true)
     if Bluetooth.isKindleClick(self.state.device_name) then
-        if manual then self:_showMessage(_("Kindle Click 已连接"), 2) end
+        if manual then self:_showMessage(_("Kindle Click connected"), 2) end
         return true
     end
 
@@ -627,7 +628,7 @@ function KindleClick:_connectClick(manual)
     local device = Backend.findPairedKindleClick()
     if not device then
         if manual then
-            self:_showMessage(_("未找到已配对的 Kindle Click，请先在 Kindle 原生系统中配对"), 5)
+            self:_showMessage(_("No paired Kindle Click found. Pair it in the Kindle system settings first."), 5)
         end
         self:_scheduleConnectionChecks()
         return false
@@ -653,7 +654,7 @@ function KindleClick:_connectClick(manual)
                     if manual and not ok2
                         and not Bluetooth.isKindleClick(self.state.device_name) then
                         self._connect_notice_pending = false
-                        self:_showMessage(err2 or _("连接 Kindle Click 失败"), 4)
+                        self:_showMessage(err2 or _("Failed to connect to Kindle Click"), 4)
                     end
                 end)
             end)
@@ -665,25 +666,26 @@ function KindleClick:_connectClick(manual)
         end
     end)
     self:_scheduleConnectionChecks()
-    if manual then self:_showMessage(_("正在连接 Kindle Click…若较久未连上，请按一下 Click"), 3) end
+    if manual then self:_showMessage(_("Connecting to Kindle Click... If it takes too long, press a button on the Click."), 3) end
     return true
 end
 
-function KindleClick:onToggleBluetooth()
+function KindleClick:onToggleBluetooth(on_complete)
     self:_cancelUserOverrides()
     self:_refreshStatus(true)
     if not self.state.known then
-        self:_showMessage(_("无法读取蓝牙状态，请先查看诊断信息"), 5)
+        self:_showMessage(_("Cannot read Bluetooth status. Check the diagnostics first."), 5)
+        if on_complete then on_complete() end
         return
     end
-    self:_setEnabled(not self.state.enabled, false)
+    self:_setEnabled(not self.state.enabled, false, on_complete)
 end
 
 function KindleClick:_connectedDeviceText()
     self:_requestStatusRefresh()
-    if not self.state.known then return _("已连接设备：蓝牙状态未知") end
-    if not self.state.enabled then return _("已连接设备：蓝牙已关闭") end
-    return _("已连接设备：") .. (self.state.device_name or _("无"))
+    if not self.state.known then return _("Connected device: Bluetooth status unknown") end
+    if not self.state.enabled then return _("Connected device: Bluetooth is off") end
+    return _("Connected device: ") .. (self.state.device_name or _("None"))
 end
 
 function KindleClick:_showDiagnostics()
@@ -691,7 +693,7 @@ function KindleClick:_showDiagnostics()
     local TextViewer = require("ui/widget/textviewer")
     local text = Diagnostics.collect()
     UIManager:show(TextViewer:new{
-        title = _("Kindle Click 诊断信息"),
+        title = _("Kindle Click Diagnostics"),
         text = text,
         text_type = "code",
         justified = false,
@@ -701,18 +703,17 @@ end
 function KindleClick:_rebuildTransportPrompt()
     local ConfirmBox = require("ui/widget/confirmbox")
     UIManager:show(ConfirmBox:new{
-        text = _("会依次停止 acsbtfd、btmanagerd 和 wmt_service，再按相反顺序启动，"
-            .. "让蓝牙传输层重新初始化。\n"
-            .. "过程中 Wi-Fi 可能短暂中断；如果 wmt 起不来，可能需要重启设备。\n"
-            .. "仅在蓝牙无法开启时使用。"),
-        ok_text = _("继续"),
+        text = _("This stops acsbtfd, btmanagerd, and wmt_service, then starts them in reverse order to reinitialize the Bluetooth transport.\n"
+            .. "Wi-Fi may briefly disconnect. If wmt does not start, the device may need to be restarted.\n"
+            .. "Use only when Bluetooth cannot be enabled."),
+        ok_text = _("Continue"),
         ok_callback = function() self:_rebuildTransport() end,
     })
 end
 
 function KindleClick:_rebuildTransport()
     if self._transport_rebuild_running then
-        self:_showMessage(_("传输层重建正在进行，请稍候"), 3)
+        self:_showMessage(_("The transport is already being rebuilt. Please wait."), 3)
         return
     end
     self._transport_rebuild_running = true
@@ -720,13 +721,13 @@ function KindleClick:_rebuildTransport()
     self:_stopPassiveWatch()
     self._power_request = (self._power_request or 0) + 1
     local request = self._power_request
-    self:_showMessage(_("正在重建蓝牙传输层（约 40–60 秒）…"), 3)
+    self:_showMessage(_("Rebuilding the Bluetooth transport (about 40–60 seconds)..."), 3)
     Backend.rebuildTransport(function(ok, err)
         if self._closed or request ~= self._power_request then return end
         self._transport_rebuild_running = false
         self:_refreshStatus(true)
         if ok then
-            self:_showMessage(_("蓝牙已重新开启，正在连接 Kindle Click"), 4)
+            self:_showMessage(_("Bluetooth is back on. Connecting to Kindle Click..."), 4)
             local device = Backend.findPairedKindleClick()
             if device then
                 Backend.connect(device, function()
@@ -737,8 +738,8 @@ function KindleClick:_rebuildTransport()
             return
         end
         if err == "superseded" or err == "timed out" then err = nil end
-        self:_showMessage((err or _("蓝牙传输层仍未恢复"))
-            .. "\n" .. _("建议重启设备，或合盖休眠 1 分钟以上再试"), 8)
+        self:_showMessage((err or _("The Bluetooth transport is still unavailable"))
+            .. "\n" .. _("Restart the device, or let it sleep for at least one minute and try again."), 8)
         self:_startPassiveWatch("transport rebuild failed")
     end)
 end
@@ -753,18 +754,18 @@ function KindleClick:_showQuickMenu()
             fn()
         end
     end
-    local toggle_text = _("切换蓝牙")
+    local toggle_text = _("Toggle Bluetooth")
     if self.state and self.state.known then
-        toggle_text = self.state.enabled and _("关闭蓝牙") or _("开启蓝牙")
+        toggle_text = self.state.enabled and _("Turn Bluetooth off") or _("Turn Bluetooth on")
     end
     dialog = ButtonDialog:new{
         buttons = {
             { { text = toggle_text, callback = close_and(function() self:onToggleBluetooth() end) } },
-            { { text = _("连接 Kindle Click"), callback = close_and(function() self:_connectClick(true) end) } },
-            { { text = _("重建蓝牙传输层（实验）…"), callback = close_and(function() self:_rebuildTransportPrompt() end) } },
-            { { text = string.format(_("检查更新（v%s）"), self.version or "?"), callback = close_and(function() self:_checkUpdates() end) } },
-            { { text = _("诊断信息"), callback = close_and(function() self:_showDiagnostics() end) } },
-            { { text = _("取消"), callback = function() UIManager:close(dialog) end } },
+            { { text = _("Connect Kindle Click"), callback = close_and(function() self:_connectClick(true) end) } },
+            { { text = _("Rebuild Bluetooth transport (experimental)..."), callback = close_and(function() self:_rebuildTransportPrompt() end) } },
+            { { text = string.format(_("Check for updates (v%s)"), self.version or "?"), callback = close_and(function() self:_checkUpdates() end) } },
+            { { text = _("Diagnostics"), callback = close_and(function() self:_showDiagnostics() end) } },
+            { { text = _("Cancel"), callback = function() UIManager:close(dialog) end } },
         },
     }
     UIManager:show(dialog)
@@ -775,31 +776,47 @@ function KindleClick:addToMainMenu(menu_items)
         text_func = function()
             self:_requestStatusRefresh()
             if not self.state.known then
-                return _("Kindle Click（蓝牙状态未知）")
+                return _("Kindle Click (Bluetooth status unknown)")
             end
             if Bluetooth.isKindleClick(self.state.device_name) then
-                return _("Kindle Click（已连接）")
+                return _("Kindle Click (connected)")
             elseif self.state.enabled then
-                return _("Kindle Click（蓝牙已开启）")
+                return _("Kindle Click (Bluetooth on)")
             end
-            return _("Kindle Click（蓝牙已关闭）")
+            return _("Kindle Click (Bluetooth off)")
         end,
         -- Settings → Network → Kindle Click, next to the other network entries.
         sorting_hint = "network",
-        checked_func = function()
-            self:_requestStatusRefresh()
-            return self.state.enabled
-        end,
+        -- No checked_func on the category entry: a checkmark would show a stale
+        -- value until the async status refresh lands, and it hits the eye again
+        -- every time the menu is opened. The text above already carries the state.
         -- Long-press the parent entry for a one-touch switch.
-        hold_callback = function() self:onToggleBluetooth() end,
+        hold_callback = function(touchmenu)
+            self:onToggleBluetooth(function()
+                if touchmenu then touchmenu:updateItems() end
+            end)
+        end,
         sub_item_table_func = function()
             self:_refreshStatus(true)
             return {
                 {
-                    text = _("蓝牙"),
-                    checked_func = function() return self.state.enabled end,
-                    check_callback_updates_menu = true,
-                    callback = function() self:onToggleBluetooth() end,
+                    -- Text instead of a checkbox: the checkmark was drawn from a
+                    -- cached state and could stay ticked after the toggle, and it
+                    -- was refreshed asynchronously after the tap.
+                    text_func = function()
+                        if not self.state.known then
+                            return _("Bluetooth") .. " · " .. _("Status unknown")
+                        end
+                        if self.state.enabled then
+                            return _("Turn Bluetooth off")
+                        end
+                        return _("Turn Bluetooth on")
+                    end,
+                    callback = function(touchmenu)
+                        self:onToggleBluetooth(function()
+                            if touchmenu then touchmenu:updateItems() end
+                        end)
+                    end,
                 },
                 {
                     text_func = function() return self:_connectedDeviceText() end,
@@ -807,12 +824,12 @@ function KindleClick:addToMainMenu(menu_items)
                     separator = true,
                 },
                 {
-                    text = _("连接 Kindle Click"),
+                    text = _("Connect Kindle Click"),
                     keep_menu_open = true,
                     callback = function() self:_connectClick(true) end,
                 },
                 {
-                    text = _("刷新连接状态"),
+                    text = _("Refresh connection status"),
                     keep_menu_open = true,
                     callback = function(touchmenu)
                         self:_refreshStatus(true)
@@ -821,7 +838,7 @@ function KindleClick:addToMainMenu(menu_items)
                     separator = true,
                 },
                 {
-                    text = _("启动 KOReader 时自动连接"),
+                    text = _("Connect automatically when KOReader starts"),
                     checked_func = function() return self.auto_connect end,
                     callback = function()
                         self.auto_connect = not self.auto_connect
@@ -829,11 +846,11 @@ function KindleClick:addToMainMenu(menu_items)
                     end,
                 },
                 {
-                    text = _("状态栏图标（三种状态）"),
+                    text = _("Status icons (three states)"),
                     sub_item_table_func = function() return Icons.getMenu(self) end,
                 },
                 {
-                    text = _("在状态栏显示三态图标（含 Bookends）"),
+                    text = _("Show three-state icon in the status bar (including Bookends)"),
                     checked_func = function() return self.show_in_footer end,
                     callback = function()
                         self.show_in_footer = not self.show_in_footer
@@ -847,13 +864,13 @@ function KindleClick:addToMainMenu(menu_items)
                     separator = true,
                 },
                 {
-                    text = _("重建蓝牙传输层（实验）…"),
+                    text = _("Rebuild Bluetooth transport (experimental)..."),
                     keep_menu_open = true,
                     callback = function() self:_rebuildTransportPrompt() end,
                     separator = true,
                 },
                 {
-                    text = _("诊断信息"),
+                    text = _("Diagnostics"),
                     keep_menu_open = true,
                     callback = function() self:_showDiagnostics() end,
                     separator = true,
@@ -861,9 +878,9 @@ function KindleClick:addToMainMenu(menu_items)
                 {
                     text_func = function()
                         if self.version then
-                            return _("检查更新") .. "（v" .. self.version .. "）"
+                            return _("Check for updates") .. " (v" .. self.version .. ")"
                         end
-                        return _("检查更新")
+                        return _("Check for updates")
                     end,
                     keep_menu_open = true,
                     callback = function() self:_checkUpdates() end,

@@ -1,18 +1,18 @@
-# Kindle Click 蓝牙 v1.7.20 / Kindle Click Bluetooth v1.7.20
+# Kindle Click 蓝牙 v1.7.21 / Kindle Click Bluetooth v1.7.21
 
 ## 中文
 
 ### 本次更新
 
-- 连接验证窗口从 20 秒延长到 40 秒：唤醒后原生栈较慢时不再提前判失败，减少无意义的重复 Connect。
-- 图标字体仍放在 `fonts/` 目录，但改用 `.kfont` 扩展名，crengine 不再把它当作文档字体扫描；旧的 `.ttf` 副本（包括 1.7.20 放在 KOReader 根目录的那份）会自动删除。
-- 日志降噪：状态只记录实际变化，字体信息每个进程只记一次；排查时更容易看到蓝牙事件。
-- 快捷菜单去掉已弃用的标题控件。
+- 修复菜单复选框与实际蓝牙状态不同步的问题：分类条目不再显示勾选，开关项改为显示「开启蓝牙 / 关闭蓝牙」。
+- 界面跟随 KOReader 语言：中文界面显示中文，英文界面显示英文；插件更名为「Kindle蓝牙和翻页器」（英文界面：Bluetooth and Kindle Click Controller）。
+- 内置更新更稳妥：更新清单的路径会严格校验，拒绝任何越出插件目录的条目，并限制条目数量与单个文件大小。
+- 修复从旧版本升级时无法创建 `l10n/` 子目录、导致内置更新失败的问题。
 
 ### 升级
 
-1. 退出 KOReader，覆盖 `plugins/kindleclick.koplugin` 文件夹；
-2. 重启 KOReader（字体路径已变更，需要重启一次生效）。
+1. 退出 KOReader，覆盖 `plugins/kindleclick.koplugin` 文件夹（或在菜单里使用「检查更新」）；
+2. 重启 KOReader。
 
 ---
 
@@ -20,12 +20,12 @@
 
 ### Changes
 
-- Connection verification now waits up to 40 seconds instead of 20, so a slow native stack after wake is not reported as a failure and fewer duplicate Connect requests are sent.
-- The icon font now stays in `fonts/` but uses a `.kfont` extension, so crengine no longer scans it as a document font; the old `.ttf` copies (including the one 1.7.20 placed in KOReader's root) are removed automatically.
-- Quieter log: state lines are written only on real transitions, and font information is recorded once per process.
-- The quick menu no longer uses the deprecated title widget.
+- Fixed the menu checkbox getting out of sync with the real Bluetooth state: the category entry no longer shows a tick, and the switch item now reads "Turn Bluetooth on / Turn Bluetooth off".
+- The UI now follows KOReader's language: Chinese in a Chinese UI, English otherwise. The plugin is now named "Bluetooth and Kindle Click Controller" (Chinese UI: Kindle蓝牙和翻页器).
+- Hardened the built-in updater: manifest paths are validated and anything escaping the plugin directory is rejected, with limits on entry count and file size.
+- Fixed in-app updates failing from older versions because the `l10n/` subdirectory could not be created.
 
 ### Upgrade
 
-1. Exit KOReader and replace the `plugins/kindleclick.koplugin` folder;
-2. restart KOReader (the font path changed, so one restart is required).
+1. Exit KOReader and replace the `plugins/kindleclick.koplugin` folder (or use "Check for updates" in the menu);
+2. restart KOReader.

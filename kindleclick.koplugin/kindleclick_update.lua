@@ -23,11 +23,14 @@ Update.FILES = {
     "kindleclick_backend.lua",
     "kindleclick_bluetooth.lua",
     "kindleclick_diagnostics.lua",
+    "kindleclick_gettext.lua",
     "kindleclick_icons.lua",
     "kindleclick_log.lua",
     "kindleclick_update.lua",
     "kindleclick_zenos.lua",
     "manifest.txt",
+    "l10n/zh_CN/LC_MESSAGES/kindleclick.mo",
+    "l10n/zh_CN/LC_MESSAGES/kindleclick.po",
     "README.md",
     "fonts/kindleclick-icons.kfont",
     "icons/kindleclick.svg",
@@ -36,6 +39,12 @@ Update.FILES = {
 local function plugin_base(url)
     return url .. "/kindleclick.koplugin/"
 end
+
+-- Hard limits for anything coming off the network. The plugin is a handful of
+-- small text files plus one ~5 KB font, so these are far above any legitimate
+-- payload and keep a tampered mirror from exhausting memory or the disk.
+local MAX_FILE_BYTES = 8 * 1024 * 1024
+local MAX_MANIFEST_FILES = 64
 
 -- Tags are named "v<version>". Until a version is known we ask jsDelivr for
 -- "@latest", which resolves the newest release tag: the default branch of the
@@ -115,7 +124,12 @@ local function fetch(url, callback)
     end
     local status = tonumber(second)
     if status == 200 then
-        callback(true, table.concat(sink))
+        local body = table.concat(sink)
+        if #body > MAX_FILE_BYTES then
+            callback(false, nil, "too_large")
+            return
+        end
+        callback(true, body)
     else
         callback(false, nil, "http_" .. tostring(status))
     end
@@ -186,26 +200,70 @@ function Update.check(local_version, callback)
     end, os.time())
 end
 
+-- A manifest line is only accepted when it is a plain relative path inside the
+-- plugin directory. Anything else (absolute path, backslash, "." / ".."
+-- segment, drive letter, percent-encoded characters) makes the WHOLE manifest
+-- untrusted: we fall back to the static list instead of installing a partial
+-- set. This is the only path that can write files, so fail closed.
+--
+-- Note: Lua patterns have no "|" alternation, so this must be done by splitting
+-- on "/" and comparing segments - a pattern such as "(^|/)..($|/)" silently
+-- matches a literal "^|/.." and would let "../evil.lua" through.
+local function is_safe_manifest_path(path)
+    if path == "" or path:sub(1, 1) == "/" or path:sub(-1) == "/" then
+        return false
+    end
+    if not path:match("^[%w%._%-/]+$") then
+        return false
+    end
+    if path:find("\\", 1, true) or path:find("//", 1, true) then
+        return false
+    end
+    for segment in path:gmatch("[^/]+") do
+        if segment == "." or segment == ".." then
+            return false
+        end
+    end
+    return true
+end -- is_safe_manifest_path
+
 local function parse_manifest(body)
     local files = {}
+    local seen = {}
     for line in tostring(body):gmatch("[^\r\n]+") do
-        line = line:gsub("^%s+", ""):gsub("%s+$", "")
-        if line ~= "" and line:match("^[%w%._%-/]+$") then
-            files[#files + 1] = line
+        line = line:gsub("^\239\187\191", ""):gsub("^%s+", ""):gsub("%s+$", "")
+        if line ~= "" then
+            if not is_safe_manifest_path(line) then
+                Log.write("update", "manifest path rejected: " .. line)
+                return nil
+            end
+            if not seen[line] then
+                seen[line] = true
+                files[#files + 1] = line
+                if #files > MAX_MANIFEST_FILES then
+                    Log.write("update", "manifest rejected: too many entries")
+                    return nil
+                end
+            end
         end
+    end
+    -- A partial install is worse than no install: never accept a manifest that
+    -- would leave the plugin without its entry points.
+    if not (seen["_meta.lua"] and seen["main.lua"]) then
+        Log.write("update", "manifest rejected: required files missing")
+        return nil
     end
     return files
 end
 
 local function list_files(callback, cache_bust, version)
     fetch_first(Update.MANIFEST_FILE, function(ok, body)
-        if ok then
-            local files = parse_manifest(body)
-            if #files > 0 then
-                callback(files)
-                return
-            end
+        local files = ok and parse_manifest(body) or nil
+        if files and #files > 0 then
+            callback(files)
+            return
         end
+        Log.write("update", "manifest unusable, using the static file list")
         callback(Update.FILES)
     end, cache_bust, version)
 end
@@ -215,6 +273,7 @@ end
 local OPTIONAL = {
     ["README.md"] = true,
     ["manifest.txt"] = true,
+    ["l10n/zh_CN/LC_MESSAGES/kindleclick.po"] = true,
 }
 
 local function write_file(path, body)
@@ -226,10 +285,20 @@ local function write_file(path, body)
 end
 
 local function ensure_dir(path)
-    pcall(function()
-        local lfs = require("libs/libkoreader-lfs")
-        lfs.mkdir(path)
-    end)
+    local ok_require, lfs = pcall(require, "libs/libkoreader-lfs")
+    if not ok_require or not lfs then return end
+    -- lfs.mkdir only creates one level, and new releases ship nested paths such
+    -- as l10n/zh_CN/LC_MESSAGES/. Walk the path and create every missing level.
+    local prefix = path:sub(1, 1) == "/" and "/" or ""
+    local built = prefix
+    for part in tostring(path):gmatch("[^/]+") do
+        if built == "" or built == "/" then
+            built = built .. part
+        else
+            built = built .. "/" .. part
+        end
+        pcall(lfs.mkdir, built)
+    end
 end
 
 -- Downloads every file to "<name>.new" first. Only when the whole set is
@@ -258,6 +327,14 @@ function Update.install(plugin_dir, callback, version)
             end
             local name = files[index]
             index = index + 1
+            -- Defence in depth: list_files can return the static table or a
+            -- manifest, and a future caller may pass a different list. Never
+            -- build a write path without validating the entry again.
+            if not is_safe_manifest_path(name) then
+                Log.write("update", "install aborted: unsafe path " .. tostring(name))
+                callback(false, name)
+                return
+            end
             fetch_first(name, function(ok, body)
                 if not ok then
                     if OPTIONAL[name] then

@@ -6,7 +6,7 @@ also enter any Unicode codepoint. This module performs no I/O unless a setting
 is read or changed; it never starts a timer or a background process.
 --]]
 
-local _ = require("gettext")
+local _ = require("kindleclick_gettext")
 
 local DataStorage = require("datastorage")
 local logger = require("logger")
@@ -19,7 +19,7 @@ local FONT_FILE = "kindleclick-icons.kfont"
 local FONT_VERSION = "1.7.20b"
 Icons.FONT_VERSION = FONT_VERSION
 
--- Glyphs shipped in fonts/kindleclick-icons.ttf. They live in the
+-- Glyphs shipped in fonts/kindleclick-icons.kfont. They live in the
 -- supplementary private use area: a Nerd Fonts footer face (symbols.ttf) also
 -- covers U+E900-U+E902 and, being the footer's own face, would win before any
 -- fallback. Plane 15 is not covered by those fonts, so the fallback chain
@@ -39,32 +39,32 @@ Icons.LEGACY_CUSTOM = {
 }
 
 Icons.STATES = {
-    { id = "off", label = _("蓝牙关闭"), key = "kindleclick_icon_off", default = 0xE7B1 },
-    { id = "on", label = _("蓝牙开启，Click 未连接"), key = "kindleclick_icon_on", default = 0xE7AE },
-    { id = "click", label = _("Kindle Click 已连接"), key = "kindleclick_icon_click", default = 0xEB53 },
+    { id = "off", label = _("Bluetooth off"), key = "kindleclick_icon_off", default = 0xE7B1 },
+    { id = "on", label = _("Bluetooth on, Click disconnected"), key = "kindleclick_icon_on", default = 0xE7AE },
+    { id = "click", label = _("Kindle Click connected"), key = "kindleclick_icon_click", default = 0xEB53 },
 }
 
 -- Names and codepoints checked against the cmap of KOReader's symbols.ttf.
 Icons.PRESETS = {
-    { code = 0xF0000, label = _("我的图标：蓝牙关闭") },
-    { code = 0xF0001, label = _("我的图标：蓝牙开启") },
-    { code = 0xF0002, label = _("我的图标：已连接") },
-    { code = 0xE7B1, label = _("蓝牙关闭") },
-    { code = 0xE7AE, label = _("蓝牙") },
-    { code = 0xE7B0, label = _("蓝牙已连接") },
-    { code = 0xEB53, label = _("遥控器") },
-    { code = 0xE995, label = _("游戏手柄") },
-    { code = 0xE7B9, label = _("书本") },
-    { code = 0xE28A, label = _("打开的书") },
-    { code = 0xEA36, label = _("链接") },
-    { code = 0xEA37, label = _("断开链接") },
-    { code = 0xECDF, label = _("圆形对勾") },
-    { code = 0xEE63, label = _("实心圆") },
-    { code = 0xEE64, label = _("空心圆") },
-    { code = 0xEC20, label = _("开关开启") },
-    { code = 0xEC21, label = _("开关关闭") },
-    { code = 0xEB24, label = _("电源") },
-    { code = 0xF25A, label = _("旧版点击手势") },
+    { code = 0xF0000, label = _("My icon: Bluetooth off") },
+    { code = 0xF0001, label = _("My icon: Bluetooth on") },
+    { code = 0xF0002, label = _("My icon: connected") },
+    { code = 0xE7B1, label = _("Bluetooth off") },
+    { code = 0xE7AE, label = _("Bluetooth") },
+    { code = 0xE7B0, label = _("Bluetooth connected") },
+    { code = 0xEB53, label = _("Remote control") },
+    { code = 0xE995, label = _("Gamepad") },
+    { code = 0xE7B9, label = _("Book") },
+    { code = 0xE28A, label = _("Open book") },
+    { code = 0xEA36, label = _("Link") },
+    { code = 0xEA37, label = _("Unlink") },
+    { code = 0xECDF, label = _("Check mark in circle") },
+    { code = 0xEE63, label = _("Filled circle") },
+    { code = 0xEE64, label = _("Hollow circle") },
+    { code = 0xEC20, label = _("Switch on") },
+    { code = 0xEC21, label = _("Switch off") },
+    { code = 0xEB24, label = _("Power") },
+    { code = 0xF25A, label = _("Legacy tap gesture") },
 }
 
 -- KOReader reads font_ui_fallbacks only at startup and inserts those fonts
@@ -352,31 +352,32 @@ local function setIcon(plugin, state, codepoint)
     plugin:_updateFooter()
 end
 
-local function showCustomCodepointDialog(plugin, state)
+local function showCustomCodepointDialog(plugin, state, touchmenu)
     local InputDialog = require("ui/widget/inputdialog")
     local UIManager = require("ui/uimanager")
     local dialog
     dialog = InputDialog:new{
-        title = state.label .. _("：自定义图标"),
-        description = _([[输入 KOReader 自带 nerdfonts/symbols.ttf 中字形的 Unicode 码位，例如 U+EB53（遥控器）。也可输入其他 Unicode 符号码位；字体缺少该字形时会显示为空框。]]),
+        title = state.label .. _(": Custom icon"),
+        description = _([[Enter the Unicode codepoint of a glyph in KOReader's nerdfonts/symbols.ttf, such as U+EB53 (remote control). Other Unicode codepoints are also accepted; a missing glyph appears as a box.]]),
         input = string.format("U+%04X", Icons.getCodepoint(state.id)),
         input_hint = "U+EB53",
         buttons = {
             {
                 {
-                    text = _("取消"),
+                    text = _("Cancel"),
                     id = "close",
                     callback = function() UIManager:close(dialog) end,
                 },
                 {
-                    text = _("保存"),
+                    text = _("Save"),
                     callback = function()
                         local codepoint = Icons.parseCodepoint(dialog:getInputText())
                         if not codepoint then
-                            plugin:_showMessage(_("码位无效，请输入例如 U+EB53"), 4)
+                            plugin:_showMessage(_("Invalid codepoint. Enter a value such as U+EB53."), 4)
                             return
                         end
                         setIcon(plugin, state, codepoint)
+                        if touchmenu then touchmenu:updateItems() end
                         UIManager:close(dialog)
                     end,
                 },
@@ -390,14 +391,14 @@ end
 function Icons.getMenu(plugin)
     local menu = {
         {
-            text = _("一键使用我的图标（关 / 开 / 已连接）"),
+            text = _("Use my icons for all three states (off / on / connected)"),
             keep_menu_open = true,
             separator = true,
             callback = function()
                 Icons.useCustom(plugin)
                 if plugin then
                     plugin:_showMessage(
-                        _("已切换为随插件附带的图标；若显示为空框，请重启 KOReader 让字体生效"), 6)
+                        _("Using the icons bundled with the plugin. If they appear as boxes, restart KOReader to load the font."), 6)
                 end
             end,
         },
@@ -418,21 +419,29 @@ function Icons.getMenu(plugin)
                         end,
                         check_callback_updates_menu = true,
                         keep_menu_open = true,
-                        callback = function() setIcon(plugin, state, preset.code) end,
+                        callback = function(touchmenu)
+                            setIcon(plugin, state, preset.code)
+                            if touchmenu then touchmenu:updateItems() end
+                        end,
                     })
                 end
                 table.insert(choices, {
-                    text = _("自定义 Unicode 码位…"),
+                    text = _("Custom Unicode codepoint..."),
                     checked_func = function()
                         return not Icons.isPreset(Icons.getCodepoint(state.id))
                     end,
                     separator = true,
-                    callback = function() showCustomCodepointDialog(plugin, state) end,
+                    callback = function(touchmenu)
+                        showCustomCodepointDialog(plugin, state, touchmenu)
+                    end,
                 })
                 table.insert(choices, {
-                    text = _("恢复此状态默认图标"),
+                    text = _("Restore this state's default icon"),
                     keep_menu_open = true,
-                    callback = function() setIcon(plugin, state, state.default) end,
+                    callback = function(touchmenu)
+                        setIcon(plugin, state, state.default)
+                        if touchmenu then touchmenu:updateItems() end
+                    end,
                 })
                 return choices
             end,

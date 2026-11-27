@@ -1,0 +1,562 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8\nPlural-Forms: nplurals=1; plural=0;\n"
+
+msgctxt "Kindle Click"
+msgid "Bluetooth and Kindle Click Controller"
+msgstr "Kindle蓝牙和翻页器"
+
+msgctxt "Kindle Click"
+msgid "Control Bluetooth on Kindle, connect Kindle Click automatically, recover a frozen Bluetooth stack, and show connection status in the reader footer, Bookends, or ZenOS."
+msgstr "在 Kindle 上控制蓝牙、自动连接 Kindle Click、系统蓝牙假死时一键救回，并在阅读状态栏、Bookends 或 ZenOS 显示连接状态。"
+
+msgctxt "Kindle Click"
+msgid "The bundled icon font is installed. Restart KOReader to use it."
+msgstr "已安装随插件附带的图标字体，请重启 KOReader 后生效"
+
+msgctxt "Kindle Click"
+msgid "Kindle Click: Toggle Bluetooth"
+msgstr "Kindle Click：开/关蓝牙"
+
+msgctxt "Kindle Click"
+msgid "Kindle Click: Connect"
+msgstr "Kindle Click：连接"
+
+msgctxt "Kindle Click"
+msgid "Kindle Click connected"
+msgstr "Kindle Click 已连接"
+
+msgctxt "Kindle Click"
+msgid "The Bluetooth transport appears disconnected (WMT reference count is 0); waiting may not help.\nRebuilding stops and restarts Bluetooth services and takes about 40–60 seconds. Wi-Fi may briefly disconnect.\nRebuild it now?"
+msgstr "蓝牙传输层似乎已断开（WMT 引用计数为 0），继续等待可能也开不了。\n重建会停止并重启蓝牙相关服务，约 40–60 秒；Wi-Fi 可能短暂中断。\n是否现在重建？"
+
+msgctxt "Kindle Click"
+msgid "Rebuild"
+msgstr "重建"
+
+msgctxt "Kindle Click"
+msgid "Later"
+msgstr "稍后"
+
+msgctxt "Kindle Click"
+msgid "Bluetooth is still starting. The plugin will not retry automatically; it will keep watching and you can toggle it later."
+msgstr "系统蓝牙仍在启动。插件不再自动重试，会继续只读观察，也可以稍后手动切换。"
+
+msgctxt "Kindle Click"
+msgid "Checking for updates..."
+msgstr "正在检查更新…"
+
+msgctxt "Kindle Click"
+msgid "There is no network connection. Connect to Wi-Fi before checking for updates."
+msgstr "当前没有网络连接，请先连接 Wi-Fi 后再检查更新"
+
+msgctxt "Kindle Click"
+msgid "Update check failed: "
+msgstr "检查更新失败："
+
+msgctxt "Kindle Click"
+msgid "Already up to date (v"
+msgstr "已是最新版本（v"
+
+msgctxt "Kindle Click"
+msgid "Version v%s is available (current version: v%s).\nDownload and install it now? Restart KOReader after the update."
+msgstr "发现新版本 v%s（当前 v%s）。\n现在下载并更新吗？更新后需要重启 KOReader。"
+
+msgctxt "Kindle Click"
+msgid "Update"
+msgstr "更新"
+
+msgctxt "Kindle Click"
+msgid "Downloading the update. Keep the network connected..."
+msgstr "正在下载更新，请保持网络连接…"
+
+msgctxt "Kindle Click"
+msgid "Update failed ("
+msgstr "更新失败（"
+
+msgctxt "Kindle Click"
+msgid "). Check the network and try again."
+msgstr "），请检查网络后重试"
+
+msgctxt "Kindle Click"
+msgid "Updated to v%s.\nRestart KOReader to apply the update."
+msgstr "已更新到 v%s。\n重启 KOReader 后生效。"
+
+msgctxt "Kindle Click"
+msgid "Restart now"
+msgstr "立即重启"
+
+msgctxt "Kindle Click"
+msgid "Turning Bluetooth on..."
+msgstr "正在打开蓝牙…"
+
+msgctxt "Kindle Click"
+msgid "Turning Bluetooth off..."
+msgstr "正在关闭蓝牙…"
+
+msgctxt "Kindle Click"
+msgid "Failed to turn Bluetooth on"
+msgstr "蓝牙开启失败"
+
+msgctxt "Kindle Click"
+msgid "Failed to turn Bluetooth off"
+msgstr "蓝牙关闭失败"
+
+msgctxt "Kindle Click"
+msgid "Bluetooth is on. Connecting to Kindle Click..."
+msgstr "蓝牙已开启，正在连接 Kindle Click"
+
+msgctxt "Kindle Click"
+msgid "Bluetooth is off"
+msgstr "蓝牙已关闭"
+
+msgctxt "Kindle Click"
+msgid "Bluetooth off"
+msgstr "蓝牙关闭"
+
+msgctxt "Kindle Click"
+msgid "No paired Kindle Click found. Pair it in the Kindle system settings first."
+msgstr "未找到已配对的 Kindle Click，请先在 Kindle 原生系统中配对"
+
+msgctxt "Kindle Click"
+msgid "Failed to connect to Kindle Click"
+msgstr "连接 Kindle Click 失败"
+
+msgctxt "Kindle Click"
+msgid "Connecting to Kindle Click... If it takes too long, press a button on the Click."
+msgstr "正在连接 Kindle Click…若较久未连上，请按一下 Click"
+
+msgctxt "Kindle Click"
+msgid "Cannot read Bluetooth status. Check the diagnostics first."
+msgstr "无法读取蓝牙状态，请先查看诊断信息"
+
+msgctxt "Kindle Click"
+msgid "Connected device: Bluetooth status unknown"
+msgstr "已连接设备：蓝牙状态未知"
+
+msgctxt "Kindle Click"
+msgid "Connected device: Bluetooth is off"
+msgstr "已连接设备：蓝牙已关闭"
+
+msgctxt "Kindle Click"
+msgid "Connected device: "
+msgstr "已连接设备："
+
+msgctxt "Kindle Click"
+msgid "None"
+msgstr "无"
+
+msgctxt "Kindle Click"
+msgid "Kindle Click Diagnostics"
+msgstr "Kindle Click 诊断信息"
+
+msgctxt "Kindle Click"
+msgid "This stops acsbtfd, btmanagerd, and wmt_service, then starts them in reverse order to reinitialize the Bluetooth transport.\nWi-Fi may briefly disconnect. If wmt does not start, the device may need to be restarted.\nUse only when Bluetooth cannot be enabled."
+msgstr "会依次停止 acsbtfd、btmanagerd 和 wmt_service，再按相反顺序启动，让蓝牙传输层重新初始化。\n过程中 Wi-Fi 可能短暂中断；如果 wmt 起不来，可能需要重启设备。\n仅在蓝牙无法开启时使用。"
+
+msgctxt "Kindle Click"
+msgid "Continue"
+msgstr "继续"
+
+msgctxt "Kindle Click"
+msgid "The transport is already being rebuilt. Please wait."
+msgstr "传输层重建正在进行，请稍候"
+
+msgctxt "Kindle Click"
+msgid "Rebuilding the Bluetooth transport (about 40–60 seconds)..."
+msgstr "正在重建蓝牙传输层（约 40–60 秒）…"
+
+msgctxt "Kindle Click"
+msgid "Bluetooth is back on. Connecting to Kindle Click..."
+msgstr "蓝牙已重新开启，正在连接 Kindle Click"
+
+msgctxt "Kindle Click"
+msgid "The Bluetooth transport is still unavailable"
+msgstr "蓝牙传输层仍未恢复"
+
+msgctxt "Kindle Click"
+msgid "Restart the device, or let it sleep for at least one minute and try again."
+msgstr "建议重启设备，或合盖休眠 1 分钟以上再试"
+
+msgctxt "Kindle Click"
+msgid "Toggle Bluetooth"
+msgstr "切换蓝牙"
+
+msgctxt "Kindle Click"
+msgid "Turn Bluetooth off"
+msgstr "关闭蓝牙"
+
+msgctxt "Kindle Click"
+msgid "Turn Bluetooth on"
+msgstr "开启蓝牙"
+
+msgctxt "Kindle Click"
+msgid "Connect Kindle Click"
+msgstr "连接 Kindle Click"
+
+msgctxt "Kindle Click"
+msgid "Rebuild Bluetooth transport (experimental)..."
+msgstr "重建蓝牙传输层（实验）…"
+
+msgctxt "Kindle Click"
+msgid "Check for updates (v%s)"
+msgstr "检查更新（v%s）"
+
+msgctxt "Kindle Click"
+msgid "Diagnostics"
+msgstr "诊断信息"
+
+msgctxt "Kindle Click"
+msgid "Cancel"
+msgstr "取消"
+
+msgctxt "Kindle Click"
+msgid "Kindle Click (Bluetooth status unknown)"
+msgstr "Kindle Click（蓝牙状态未知）"
+
+msgctxt "Kindle Click"
+msgid "Kindle Click (connected)"
+msgstr "Kindle Click（已连接）"
+
+msgctxt "Kindle Click"
+msgid "Kindle Click (Bluetooth on)"
+msgstr "Kindle Click（蓝牙已开启）"
+
+msgctxt "Kindle Click"
+msgid "Kindle Click (Bluetooth off)"
+msgstr "Kindle Click（蓝牙已关闭）"
+
+msgctxt "Kindle Click"
+msgid "Bluetooth"
+msgstr "蓝牙"
+
+msgctxt "Kindle Click"
+msgid "Refresh connection status"
+msgstr "刷新连接状态"
+
+msgctxt "Kindle Click"
+msgid "Connect automatically when KOReader starts"
+msgstr "启动 KOReader 时自动连接"
+
+msgctxt "Kindle Click"
+msgid "Status icons (three states)"
+msgstr "状态栏图标（三种状态）"
+
+msgctxt "Kindle Click"
+msgid "Show three-state icon in the status bar (including Bookends)"
+msgstr "在状态栏显示三态图标（含 Bookends）"
+
+msgctxt "Kindle Click"
+msgid "Check for updates"
+msgstr "检查更新"
+
+msgctxt "Kindle Click"
+msgid "Status unknown"
+msgstr "状态未知"
+
+msgctxt "Kindle Click"
+msgid "Click connected"
+msgstr "翻页器连通"
+
+msgctxt "Kindle Click"
+msgid "Click disconnected"
+msgstr "翻页器断开"
+
+msgctxt "Kindle Click"
+msgid "Kindle native Bluetooth"
+msgstr "Kindle 原生蓝牙"
+
+msgctxt "Kindle Click"
+msgid "Cannot read Bluetooth status. Check the diagnostics."
+msgstr "无法读取蓝牙状态，请查看诊断信息"
+
+msgctxt "Kindle Click"
+msgid "Bluetooth status did not change. Check the diagnostics."
+msgstr "蓝牙状态没有变化，请查看诊断信息"
+
+msgctxt "Kindle Click"
+msgid "Device status did not change. Make sure the device is on and nearby."
+msgstr "设备状态没有变化，请确认设备已开启并在附近"
+
+msgctxt "Kindle Click"
+msgid "Could not send the native connection request."
+msgstr "无法发送原生连接请求"
+
+msgctxt "Kindle Click"
+msgid "Bluetooth on, Click disconnected"
+msgstr "蓝牙开启，Click 未连接"
+
+msgctxt "Kindle Click"
+msgid "My icon: Bluetooth off"
+msgstr "我的图标：蓝牙关闭"
+
+msgctxt "Kindle Click"
+msgid "My icon: Bluetooth on"
+msgstr "我的图标：蓝牙开启"
+
+msgctxt "Kindle Click"
+msgid "My icon: connected"
+msgstr "我的图标：已连接"
+
+msgctxt "Kindle Click"
+msgid "Bluetooth connected"
+msgstr "蓝牙已连接"
+
+msgctxt "Kindle Click"
+msgid "Remote control"
+msgstr "遥控器"
+
+msgctxt "Kindle Click"
+msgid "Gamepad"
+msgstr "游戏手柄"
+
+msgctxt "Kindle Click"
+msgid "Book"
+msgstr "书本"
+
+msgctxt "Kindle Click"
+msgid "Open book"
+msgstr "打开的书"
+
+msgctxt "Kindle Click"
+msgid "Link"
+msgstr "链接"
+
+msgctxt "Kindle Click"
+msgid "Unlink"
+msgstr "断开链接"
+
+msgctxt "Kindle Click"
+msgid "Check mark in circle"
+msgstr "圆形对勾"
+
+msgctxt "Kindle Click"
+msgid "Filled circle"
+msgstr "实心圆"
+
+msgctxt "Kindle Click"
+msgid "Hollow circle"
+msgstr "空心圆"
+
+msgctxt "Kindle Click"
+msgid "Switch on"
+msgstr "开关开启"
+
+msgctxt "Kindle Click"
+msgid "Switch off"
+msgstr "开关关闭"
+
+msgctxt "Kindle Click"
+msgid "Power"
+msgstr "电源"
+
+msgctxt "Kindle Click"
+msgid "Legacy tap gesture"
+msgstr "旧版点击手势"
+
+msgctxt "Kindle Click"
+msgid ": Custom icon"
+msgstr "：自定义图标"
+
+msgctxt "Kindle Click"
+msgid "Enter the Unicode codepoint of a glyph in KOReader's nerdfonts/symbols.ttf, such as U+EB53 (remote control). Other Unicode codepoints are also accepted; a missing glyph appears as a box."
+msgstr "输入 KOReader 自带 nerdfonts/symbols.ttf 中字形的 Unicode 码位，例如 U+EB53（遥控器）。也可输入其他 Unicode 符号码位；字体缺少该字形时会显示为空框。"
+
+msgctxt "Kindle Click"
+msgid "Save"
+msgstr "保存"
+
+msgctxt "Kindle Click"
+msgid "Invalid codepoint. Enter a value such as U+EB53."
+msgstr "码位无效，请输入例如 U+EB53"
+
+msgctxt "Kindle Click"
+msgid "Use my icons for all three states (off / on / connected)"
+msgstr "一键使用我的图标（关 / 开 / 已连接）"
+
+msgctxt "Kindle Click"
+msgid "Using the icons bundled with the plugin. If they appear as boxes, restart KOReader to load the font."
+msgstr "已切换为随插件附带的图标；若显示为空框，请重启 KOReader 让字体生效"
+
+msgctxt "Kindle Click"
+msgid "Custom Unicode codepoint..."
+msgstr "自定义 Unicode 码位…"
+
+msgctxt "Kindle Click"
+msgid "Restore this state's default icon"
+msgstr "恢复此状态默认图标"
+
+msgctxt "Kindle Click"
+msgid "Kindle Click"
+msgstr "Kindle Click"
+
+msgctxt "Kindle Click"
+msgid "(none)"
+msgstr "（无）"
+
+msgctxt "Kindle Click"
+msgid "Time: "
+msgstr "时间："
+
+msgctxt "Kindle Click"
+msgid "Device: "
+msgstr "设备："
+
+msgctxt "Kindle Click"
+msgid "Plugin status"
+msgstr "插件状态"
+
+msgctxt "Kindle Click"
+msgid "Bluetooth enabled: "
+msgstr "蓝牙开启："
+
+msgctxt "Kindle Click"
+msgid "Native Click pass-through: "
+msgstr "原生 Click 通道："
+
+msgctxt "Kindle Click"
+msgid "Brightness down KEY_BRIGHTNESSDOWN (224): handled by native input_manager"
+msgstr "亮度减 KEY_BRIGHTNESSDOWN (224)：原生 input_manager"
+
+msgctxt "Kindle Click"
+msgid "Brightness up KEY_BRIGHTNESSUP (225): handled by native input_manager"
+msgstr "亮度增 KEY_BRIGHTNESSUP (225)：原生 input_manager"
+
+msgctxt "Kindle Click"
+msgid "Both side buttons sleep KEY_POWER (116): handled by native input_manager / powerd"
+msgstr "双侧键休眠 KEY_POWER (116)：原生 input_manager / powerd"
+
+msgctxt "Kindle Click"
+msgid "The plugin does not remap these three actions, to avoid duplicate execution."
+msgstr "说明：上述三个键不由本插件重复映射，避免重复执行。"
+
+msgctxt "Kindle Click"
+msgid "Click HID node (present only while connected)"
+msgstr "Click HID 节点（连接时才应存在）"
+
+msgctxt "Kindle Click"
+msgid "Name: "
+msgstr "名称："
+
+msgctxt "Kindle Click"
+msgid "Node: "
+msgstr "节点："
+
+msgctxt "Kindle Click"
+msgid "Handlers: "
+msgstr "Handlers："
+
+msgctxt "Kindle Click"
+msgid "(VID:PID 0171:0443 not detected)"
+msgstr "（未检测到 VID:PID 0171:0443）"
+
+msgctxt "Kindle Click"
+msgid "Native Bluetooth LIPC properties"
+msgstr "原生蓝牙 LIPC 属性"
+
+msgctxt "Kindle Click"
+msgid "(write-only; not read)"
+msgstr "（只写，不读取）"
+
+msgctxt "Kindle Click"
+msgid "Power status"
+msgstr "电源状态"
+
+msgctxt "Kindle Click"
+msgid "Bluetooth kernel modules"
+msgstr "蓝牙内核模块"
+
+msgctxt "Kindle Click"
+msgid "(lsmod unavailable)"
+msgstr "（lsmod 不可用）"
+
+msgctxt "Kindle Click"
+msgid "Bluetooth/wireless entries from the end of the kernel log"
+msgstr "内核日志中的蓝牙/无线记录（尾部）"
+
+msgctxt "Kindle Click"
+msgid "Bluetooth-related upstart jobs"
+msgstr "BT 相关 upstart 作业"
+
+msgctxt "Kindle Click"
+msgid "Bluetooth daemon stderr (end of /tmp/*.err)"
+msgstr "蓝牙守护进程 stderr（/tmp/*.err 尾部）"
+
+msgctxt "Kindle Click"
+msgid "WMT transport status"
+msgstr "WMT 传输层状态"
+
+msgctxt "Kindle Click"
+msgid "Device nodes: "
+msgstr "设备节点："
+
+msgctxt "Kindle Click"
+msgid "Module files: "
+msgstr "模块文件："
+
+msgctxt "Kindle Click"
+msgid "File descriptors opened by acsbtfd:"
+msgstr "acsbtfd 打开的 fd："
+
+msgctxt "Kindle Click"
+msgid "(no matches)"
+msgstr "（无匹配）"
+
+msgctxt "Kindle Click"
+msgid "File descriptors opened by btmanagerd:"
+msgstr "btmanagerd 打开的 fd："
+
+msgctxt "Kindle Click"
+msgid "Bluetooth/WMT entries from the end of /var/log/messages"
+msgstr "系统日志中的 BT/WMT 记录（/var/log/messages 尾部）"
+
+msgctxt "Kindle Click"
+msgid "Job lookup (upstart configuration referencing btfd)"
+msgstr "作业定位（引用 btfd 的 upstart 配置）"
+
+msgctxt "Kindle Click"
+msgid "(not found)"
+msgstr "（未找到）"
+
+msgctxt "Kindle Click"
+msgid "Bluetooth upstart job configuration"
+msgstr "BT upstart 作业配置"
+
+msgctxt "Kindle Click"
+msgid "Related processes"
+msgstr "相关进程"
+
+msgctxt "Kindle Click"
+msgid "Persisted Click accessory type"
+msgstr "Click 配件类型持久化信息"
+
+msgctxt "Kindle Click"
+msgid "Related LIPC services and properties (lipc-probe summary)"
+msgstr "相关 LIPC 服务与属性（lipc-probe 摘要）"
+
+msgctxt "Kindle Click"
+msgid "Plugin log ("
+msgstr "插件日志（"
+
+msgctxt "Kindle Click"
+msgid "; end)"
+msgstr " 尾部）"
+
+msgctxt "Kindle Click"
+msgid "The persistent kindle-input-pt node does not mean the Click is connected;"
+msgstr "说明：kindle-input-pt 常驻不代表 Click 已连接；"
+
+msgctxt "Kindle Click"
+msgid "the 0171:0443 HID node above is the connection indicator."
+msgstr "真正的连接依据是上方 0171:0443 HID 节点。"
+
+msgctxt "Kindle Click"
+msgid "This report does not read or export Bluetooth link keys."
+msgstr "本诊断不读取或导出蓝牙 LinkKey。"
+
+msgctxt "Kindle Click"
+msgid "Diagnostics saved to:"
+msgstr "诊断文件已保存到："
+
+msgctxt "Kindle Click"
+msgid "Could not save diagnostics to:"
+msgstr "无法保存诊断文件："

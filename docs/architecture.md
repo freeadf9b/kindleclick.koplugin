@@ -91,6 +91,9 @@ Bookends listens to KOReader's `RefreshAdditionalContent` event. Add `%plugin_co
 - Fetches the remote `_meta.lua` from jsDelivr/raw mirrors over LuaSocket, parses `version = "..."`, and compares numerically.
 - Downloads the file list from `manifest.txt` (falling back to a bundled list) to `<file>.new`, then renames them into place. A restart applies the update.
 - Cache-busting query strings are appended so a fresh push is visible without waiting for the CDN cache.
+- Manifest lines are validated as plain relative paths. The check splits each path on `/` and rejects any `.` or `..` segment, absolute paths, backslashes, empty segments (`//`), a trailing slash, and encoded characters; one bad line rejects the **whole** manifest and falls back to the bundled file list. `_meta.lua` and `main.lua` must be present, and the entry count and per-file size are capped. The same check runs again before every file write.
+- Nested directories such as `l10n/zh_CN/LC_MESSAGES` are created level by level before the downloaded file is written.
+- Transport is HTTPS, but LuaSocket does not verify the peer certificate on Kindle (there is no CA store to point it at), so the update source is trusted by design. The path validation limits a tampered manifest to writing inside the plugin directory.
 
 ## Firmware notes
 

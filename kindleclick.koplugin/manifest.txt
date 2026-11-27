@@ -3,6 +3,7 @@ main.lua
 kindleclick_backend.lua
 kindleclick_bluetooth.lua
 kindleclick_diagnostics.lua
+kindleclick_gettext.lua
 kindleclick_icons.lua
 kindleclick_log.lua
 kindleclick_update.lua
@@ -11,3 +12,5 @@ manifest.txt
 README.md
 fonts/kindleclick-icons.kfont
 icons/kindleclick.svg
+l10n/zh_CN/LC_MESSAGES/kindleclick.mo
+l10n/zh_CN/LC_MESSAGES/kindleclick.po

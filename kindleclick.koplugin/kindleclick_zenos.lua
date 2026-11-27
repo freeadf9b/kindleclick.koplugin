@@ -11,7 +11,7 @@ local Button = require("ui/widget/button")
 local CenterContainer = require("ui/widget/container/centercontainer")
 local Icons = require("kindleclick_icons")
 local Bluetooth = require("kindleclick_bluetooth")
-local _ = require("gettext")
+local _ = require("kindleclick_gettext")
 
 local ZenOS = {}
 
@@ -19,24 +19,24 @@ ZenOS.ID = "kindleclick.status"
 
 local function status_label(plugin)
     local state = plugin and plugin.state
-    if not state or not state.known then return _("状态未知") end
-    if not state.enabled then return _("蓝牙关闭") end
-    if Bluetooth.isKindleClick(state.device_name) then return _("翻页器连通") end
-    return _("翻页器断开")
+    if not state or not state.known then return _("Status unknown") end
+    if not state.enabled then return _("Bluetooth off") end
+    if Bluetooth.isKindleClick(state.device_name) then return _("Click connected") end
+    return _("Click disconnected")
 end
 
 local function home_state_text(plugin)
     local state = plugin and plugin.state
     if not state or not state.known then
-        return "? " .. _("状态未知")
+        return "? " .. _("Status unknown")
     end
     if not state.enabled then
-        return Icons.getGlyph("off") .. " " .. _("蓝牙关闭")
+        return Icons.getGlyph("off") .. " " .. _("Bluetooth off")
     end
     if Bluetooth.isKindleClick(state.device_name) then
-        return Icons.getGlyph("click") .. " " .. _("翻页器连通")
+        return Icons.getGlyph("click") .. " " .. _("Click connected")
     end
-    return Icons.getGlyph("on") .. " " .. _("翻页器断开")
+    return Icons.getGlyph("on") .. " " .. _("Click disconnected")
 end
 
 function ZenOS.statusLabel(plugin)

@@ -1,7 +1,7 @@
-local _ = require("gettext")
+local _ = require("kindleclick_gettext")
 return {
-    fullname = _("Kindle Click 蓝牙"),
-    description = _("在 Kindle 上控制蓝牙、自动连接 Kindle Click、系统蓝牙假死时一键救回，并在阅读状态栏、Bookends 或 ZenOS 显示连接状态。"),
+    fullname = _("Bluetooth and Kindle Click Controller"),
+    description = _("Control Bluetooth on Kindle, connect Kindle Click automatically, recover a frozen Bluetooth stack, and show connection status in the reader footer, Bookends, or ZenOS."),
     author = "GitHub/freeadf9b",
-    version = "1.7.20",
+    version = "1.7.21",
 }

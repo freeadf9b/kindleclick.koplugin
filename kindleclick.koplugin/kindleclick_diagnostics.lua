@@ -8,6 +8,7 @@ never starts a listener, scan, or recurring task.
 local Bluetooth = require("kindleclick_bluetooth")
 local Device = require("device")
 local Log = require("kindleclick_log")
+local _ = require("kindleclick_gettext")
 
 local Diagnostics = {}
 local DIAGNOSTIC_FILE = (Device.home_dir or "/mnt/us")
@@ -30,7 +31,7 @@ local function readShell(command)
 end
 
 local function present(value)
-    if value == nil or value == "" then return "(无)" end
+    if value == nil or value == "" then return _("(none)") end
     return tostring(value)
 end
 
@@ -39,37 +40,37 @@ function Diagnostics.collect()
     local input = Device.input or {}
     local event_map = input.event_map or {}
     local lines = {
-        "Kindle Click 诊断信息",
-        "时间：" .. os.date("%Y-%m-%d %H:%M:%S"),
-        "设备：" .. present(Device.model),
+        _("Kindle Click Diagnostics"),
+        _("Time: ") .. os.date("%Y-%m-%d %H:%M:%S"),
+        _("Device: ") .. present(Device.model),
         "",
-        "插件状态",
-        "蓝牙开启：" .. tostring(status.enabled),
-        "已连接设备：" .. present(status.device_name),
-        "原生 Click 通道：" .. tostring(status.native_click),
+        _("Plugin status"),
+        _("Bluetooth enabled: ") .. tostring(status.enabled),
+        _("Connected device: ") .. present(status.device_name),
+        _("Native Click pass-through: ") .. tostring(status.native_click),
         "KOReader hasKeys：" .. tostring(Device:hasKeys()),
         "KEY_PAGEUP (104)：" .. present(event_map[104]),
         "KEY_PAGEDOWN (109)：" .. present(event_map[109]),
-        "亮度减 KEY_BRIGHTNESSDOWN (224)：原生 input_manager",
-        "亮度增 KEY_BRIGHTNESSUP (225)：原生 input_manager",
-        "双侧键休眠 KEY_POWER (116)：原生 input_manager / powerd",
-        "说明：上述三个键不由本插件重复映射，避免重复执行。",
+        _("Brightness down KEY_BRIGHTNESSDOWN (224): handled by native input_manager"),
+        _("Brightness up KEY_BRIGHTNESSUP (225): handled by native input_manager"),
+        _("Both side buttons sleep KEY_POWER (116): handled by native input_manager / powerd"),
+        _("The plugin does not remap these three actions, to avoid duplicate execution."),
         "",
-        "Click HID 节点（连接时才应存在）",
+        _("Click HID node (present only while connected)"),
     }
 
     if status.click then
-        table.insert(lines, "名称：" .. present(status.click.name))
-        table.insert(lines, "VID:PID：" .. present(status.click.vendor)
+        table.insert(lines, _("Name: ") .. present(status.click.name))
+        table.insert(lines, "VID:PID: " .. present(status.click.vendor)
             .. ":" .. present(status.click.product))
-        table.insert(lines, "节点：" .. present(status.click.path))
-        table.insert(lines, "Handlers：" .. present(status.click.handlers))
+        table.insert(lines, _("Node: ") .. present(status.click.path))
+        table.insert(lines, _("Handlers: ") .. present(status.click.handlers))
     else
-        table.insert(lines, "(未检测到 VID:PID 0171:0443)")
+        table.insert(lines, _("(VID:PID 0171:0443 not detected)"))
     end
 
     table.insert(lines, "")
-    table.insert(lines, "原生蓝牙 LIPC 属性")
+    table.insert(lines, _("Native Bluetooth LIPC properties"))
     local properties = Bluetooth.getDiagnosticProperties()
     for _, key in ipairs({
         "BTstate", "BTconnectedDevName",
@@ -77,65 +78,65 @@ function Diagnostics.collect()
     }) do
         table.insert(lines, key .. " = " .. present(properties[key]))
     end
-    table.insert(lines, "BTflightMode = (write-only，不读取)")
+    table.insert(lines, "BTflightMode = " .. _("(write-only; not read)"))
 
     table.insert(lines, "")
-    table.insert(lines, "电源状态")
+    table.insert(lines, _("Power status"))
     table.insert(lines, "powerd.state = " .. present(readShell(
         "timeout 2 lipc-get-prop com.lab126.powerd state 2>/dev/null")))
 
     table.insert(lines, "")
-    table.insert(lines, "蓝牙内核模块")
+    table.insert(lines, _("Bluetooth kernel modules"))
     table.insert(lines, present(readShell(
-        "lsmod 2>/dev/null | grep -i -E 'wmt|bt' 2>/dev/null") or "(lsmod 不可用)"))
+        "lsmod 2>/dev/null | grep -i -E 'wmt|bt' 2>/dev/null") or _("(lsmod unavailable)")))
 
     table.insert(lines, "")
-    table.insert(lines, "内核日志中的蓝牙/无线记录（尾部）")
+    table.insert(lines, _("Bluetooth/wireless entries from the end of the kernel log"))
     table.insert(lines, present(readShell(
-        "dmesg 2>/dev/null | grep -i -E 'wmt|bluetooth|btusb|stpbt' | tail -60 2>/dev/null") or "(无)"))
+        "dmesg 2>/dev/null | grep -i -E 'wmt|bluetooth|btusb|stpbt' | tail -60 2>/dev/null") or _("(none)")))
 
     table.insert(lines, "")
-    table.insert(lines, "BT 相关 upstart 作业")
+    table.insert(lines, _("Bluetooth-related upstart jobs"))
     table.insert(lines, present(readShell(
-        "ls /etc/upstart 2>/dev/null | grep -i -E 'bt|bluetooth' 2>/dev/null") or "(无)"))
+        "ls /etc/upstart 2>/dev/null | grep -i -E 'bt|bluetooth' 2>/dev/null") or _("(none)")))
     table.insert(lines, present(readShell(
         "PATH=/sbin:/usr/sbin:$PATH; initctl list 2>/dev/null | grep -i -E 'bt|bluetooth' 2>/dev/null")))
     table.insert(lines, "pidof：" .. present(readShell(
         "pidof acsbtfd btmanagerd btfd-acsv2 input_manager 2>/dev/null")))
 
     table.insert(lines, "")
-    table.insert(lines, "蓝牙守护进程 stderr（/tmp/*.err 尾部）")
+    table.insert(lines, _("Bluetooth daemon stderr (end of /tmp/*.err)"))
     for _, path in ipairs({ "/tmp/btfd-acs.err", "/tmp/btmanagerd.err" }) do
         table.insert(lines, "--- " .. path .. " ---")
         table.insert(lines, present(readFile(path, 8000)))
     end
 
     table.insert(lines, "")
-    table.insert(lines, "WMT 传输层状态")
-    table.insert(lines, "设备节点：" .. present(readShell(
+    table.insert(lines, _("WMT transport status"))
+    table.insert(lines, _("Device nodes: ") .. present(readShell(
         "ls -l /dev/stpbt* 2>/dev/null")))
-    table.insert(lines, "模块文件：" .. present(readShell(
+    table.insert(lines, _("Module files: ") .. present(readShell(
         "ls /drivers/*/*/wmt_cdev_bt.ko /lib/modules/*/extra/wmt_cdev_bt.ko 2>/dev/null")))
-    table.insert(lines, "acsbtfd 打开的 fd：")
+    table.insert(lines, _("File descriptors opened by acsbtfd:"))
     table.insert(lines, present(readShell(
         "for p in $(pidof acsbtfd 2>/dev/null); do ls -l /proc/$p/fd 2>/dev/null; done | grep -i -E 'stpbt|wmt|bt' ; true")
-        or "(无匹配)"))
-    table.insert(lines, "btmanagerd 打开的 fd：")
+        or _("(no matches)")))
+    table.insert(lines, _("File descriptors opened by btmanagerd:"))
     table.insert(lines, present(readShell(
         "for p in $(pidof btmanagerd 2>/dev/null); do ls -l /proc/$p/fd 2>/dev/null; done | grep -i -E 'stpbt|wmt|bt' ; true")
-        or "(无匹配)"))
-    table.insert(lines, "系统日志中的 BT/WMT 记录（/var/log/messages 尾部）")
+        or _("(no matches)")))
+    table.insert(lines, _("Bluetooth/WMT entries from the end of /var/log/messages"))
     table.insert(lines, present(readShell(
         "tail -600 /var/log/messages 2>/dev/null | grep -i -E 'btfd|bluetooth|wmt' | tail -40")))
     table.insert(lines, "")
     table.insert(lines, "--- /etc/upstart/wmt.conf ---")
     table.insert(lines, present(readFile("/etc/upstart/wmt.conf", 6000)))
-    table.insert(lines, "作业定位（引用 btfd 的 upstart 配置）")
+    table.insert(lines, _("Job lookup (upstart configuration referencing btfd)"))
     table.insert(lines, present(readShell(
-        "grep -l -i -E 'acsbtfd|btmanager|/usr/bin/btfd' /etc/upstart/*.conf 2>/dev/null") or "(未找到)"))
+        "grep -l -i -E 'acsbtfd|btmanager|/usr/bin/btfd' /etc/upstart/*.conf 2>/dev/null") or _("(not found)")))
 
     table.insert(lines, "")
-    table.insert(lines, "BT upstart 作业配置")
+    table.insert(lines, _("Bluetooth upstart job configuration"))
     for _, name in ipairs({ "acsbtfd", "btmanagerd", "asr_bt_reboot", "asr_bt_userstore" }) do
         local path = "/etc/upstart/" .. name .. ".conf"
         local text = readFile(path, 6000)
@@ -146,16 +147,16 @@ function Diagnostics.collect()
     end
 
     table.insert(lines, "")
-    table.insert(lines, "相关进程")
+    table.insert(lines, _("Related processes"))
     table.insert(lines, present(readShell(
         "ps 2>/dev/null | grep -E 'acsbtfd|btfd|input_manager|bluetooth' 2>/dev/null")))
 
     table.insert(lines, "")
-    table.insert(lines, "Click 配件类型持久化信息")
+    table.insert(lines, _("Persisted Click accessory type"))
     table.insert(lines, present(readFile("/var/local/system/bt_device_types.conf", 20000)))
 
     table.insert(lines, "")
-    table.insert(lines, "相关 LIPC 服务与属性（lipc-probe 摘要）")
+    table.insert(lines, _("Related LIPC services and properties (lipc-probe summary)"))
     table.insert(lines, present(readShell(
         "timeout 5 lipc-probe -a 2>/dev/null | grep -i -E -A 12 -B 2 'btfd|kindleclick|page.?turner|accessories' 2>/dev/null")))
 
@@ -164,14 +165,14 @@ function Diagnostics.collect()
     table.insert(lines, present(readFile("/proc/bus/input/devices", 100000)))
 
     table.insert(lines, "")
-    table.insert(lines, "插件日志（" .. Log.path() .. " 尾部）")
+    table.insert(lines, _("Plugin log (") .. Log.path() .. _("; end)"))
     local tail = Log.tail(80)
     table.insert(lines, present(tail))
 
     table.insert(lines, "")
-    table.insert(lines, "说明：kindle-input-pt 常驻不代表 Click 已连接；")
-    table.insert(lines, "真正的连接依据是上方 0171:0443 HID 节点。")
-    table.insert(lines, "本诊断不读取或导出蓝牙 LinkKey。")
+    table.insert(lines, _("The persistent kindle-input-pt node does not mean the Click is connected;"))
+    table.insert(lines, _("the 0171:0443 HID node above is the connection indicator."))
+    table.insert(lines, _("This report does not read or export Bluetooth link keys."))
 
     local body = table.concat(lines, "\n")
     local file = io.open(DIAGNOSTIC_FILE, "w")
@@ -182,8 +183,8 @@ function Diagnostics.collect()
     end
 
     local header = saved
-        and ("诊断文件已保存到：\n" .. DIAGNOSTIC_FILE .. "\n\n")
-        or  ("无法保存诊断文件：\n" .. DIAGNOSTIC_FILE .. "\n\n")
+        and (_("Diagnostics saved to:") .. "\n" .. DIAGNOSTIC_FILE .. "\n\n")
+        or  (_("Could not save diagnostics to:") .. "\n" .. DIAGNOSTIC_FILE .. "\n\n")
     return header .. body, saved and DIAGNOSTIC_FILE or nil
 end
 

@@ -15,8 +15,9 @@ asks for them.
 local Bluetooth = require("kindleclick_bluetooth")
 local Log = require("kindleclick_log")
 local UIManager = require("ui/uimanager")
+local _ = require("kindleclick_gettext")
 
-local Backend = { id = "kindle", display_name = "Kindle 原生蓝牙" }
+local Backend = { id = "kindle", display_name = _("Kindle native Bluetooth") }
 local WAIT_SECONDS = 15
 
 function Backend.getStatus()
@@ -42,7 +43,7 @@ local function waitForPower(enabled, token, seconds, done)
             unknown_reads = unknown_reads + 1
             if unknown_reads >= 3 then
                 Log.write("power", "status unavailable: " .. Bluetooth.describe())
-                return done(false, "无法读取蓝牙状态，请查看诊断信息")
+                return done(false, _("Cannot read Bluetooth status. Check the diagnostics."))
             end
         else
             unknown_reads = 0
@@ -70,7 +71,7 @@ local function enableOnce(token, done, enable_seconds)
             return done(true)
         end
         Log.write("power", "enable not confirmed: " .. Bluetooth.describe())
-        return done(false, "蓝牙状态没有变化，请查看诊断信息")
+        return done(false, _("Bluetooth status did not change. Check the diagnostics."))
     end)
 end
 
@@ -80,7 +81,7 @@ local function disableWithWait(token, done)
     waitForPower(false, token, WAIT_SECONDS, function(ok)
         if not ok then
             Log.write("power", "disable timed out: " .. Bluetooth.describe())
-            return done(false, "蓝牙状态没有变化，请查看诊断信息")
+            return done(false, _("Bluetooth status did not change. Check the diagnostics."))
         end
         return done(true)
     end)
@@ -193,7 +194,7 @@ local function verifyClickConnected(address, done)
         if device and device.connected then return done(true) end
         if index >= #CONNECT_CHECK_DELAYS then
             Log.write("connect", "verification timed out for " .. tostring(address))
-            return done(false, "设备状态没有变化，请确认设备已开启并在附近")
+            return done(false, _("Device status did not change. Make sure the device is on and nearby."))
         end
         UIManager:scheduleIn(CONNECT_CHECK_DELAYS[index + 1] - CONNECT_CHECK_DELAYS[index], check)
     end
@@ -203,7 +204,7 @@ end
 function Backend.connect(device, done)
     if not Bluetooth.connect(device.address) then
         Log.write("connect", "Connect request rejected for " .. tostring(device.address))
-        return done(false, "无法发送原生连接请求")
+        return done(false, _("Could not send the native connection request."))
     end
     Log.write("connect", "Connect sent to " .. tostring(device.address))
     verifyClickConnected(device.address, done)
